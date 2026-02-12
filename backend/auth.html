@@ -252,6 +252,10 @@
                     <input type="password" id="login-password" placeholder="Enter your password" required>
                 </div>
                 <button type="submit" class="btn btn-primary" id="login-btn">Sign In</button>
+                
+                <p style="text-align: center; margin-top: 15px;">
+                    <a href="reset-password.html" style="color: #e94560; text-decoration: none; font-size: 14px;">Forgot Password?</a>
+                </p>
             </form>
             
             <!-- Email/Password Register Form -->
@@ -296,6 +300,18 @@
     
     <!-- Firebase SDK -->
     <script type="module">
+        // Check for password reset success
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('reset') === 'success') {
+            document.addEventListener('DOMContentLoaded', () => {
+                setTimeout(() => {
+                    const successEl = document.getElementById('success-message');
+                    successEl.textContent = '✅ Password reset successfully! You can now sign in with your new password.';
+                    successEl.style.display = 'block';
+                }, 100);
+            });
+        }
+        
         // Firebase configuration - REPLACE with your actual config
         const firebaseConfig = {
             apiKey: "AIzaSyDBQosoOgqEa0LONZhEZUSVJjV1diFMdCk",
