@@ -1,5 +1,6 @@
 # Dependencies
 node_modules/
+backend/node_modules/
 backend/venv/
 __pycache__/
 *.pyc
@@ -37,5 +38,16 @@ build/
 # Internal documentation (auth & firebase guides)
 backend/AUTH_README.md
 backend/FIREBASE_SETUP_GUIDE.md
+backend/PROFILE_PHOTOS_GUIDE.md
+backend/SUPABASE_QUICK_START.md
+backend/SUPABASE_SETUP.md
 FRONTEND_GUIDE.md
 frontend-developer-docs.md
+FRONTEND_API_DOCS.md
+FRONTEND_INTEGRATION.md
+PROFILE_PHOTOS_SOLUTION.md
+TESTING_GUIDE.md
+
+# HTML test files
+*.html
+!README.html
