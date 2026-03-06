@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Profile - Ethiopodcasts</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: #1a1a2e;
+            border-radius: 20px;
+            padding: 40px;
+            color: white;
+        }
+        .back-btn {
+            color: #a0a0a0;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .back-btn:hover { color: white; }
+        h1 { margin-bottom: 30px; font-size: 28px; }
+        .profile-pic {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            margin: 0 auto 30px;
+            display: block;
+            border: 4px solid #667eea;
+            object-fit: cover;
+        }
+        .form-group {
+            margin-bottom: 25px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #a0a0a0;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 12px 16px;
+            background: #16213e;
+            border: 1px solid #2d3561;
+            border-radius: 10px;
+            color: white;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+            font-family: inherit;
+        }
+        .save-btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 10px;
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .save-btn:hover {
+            transform: translateY(-2px);
+        }
+        .save-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .error {
+            background: #ff4444;
+            color: white;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .success {
+            background: #00C851;
+            color: white;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #a0a0a0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/profile" class="back-btn">← Back</a>
+        
+        <h1>Edit Profile</h1>
+        
+        <div id="message"></div>
+        <div id="loading" class="loading" style="display: none;">Loading...</div>
+        
+        <div id="profileForm" style="display: none;">
+            <img id="profilePic" class="profile-pic" src="" alt="Profile">
+            
+            <div class="form-group">
+                <label for="displayName">Display Name</label>
+                <input type="text" id="displayName" placeholder="Enter your name">
+            </div>
+            
+            <div class="form-group">
+                <label for="photoURL">Photo URL</label>
+                <input type="url" id="photoURL" placeholder="https://example.com/photo.jpg">
+            </div>
+            
+            <div class="form-group">
+                <label for="bio">Bio</label>
+                <textarea id="bio" placeholder="Tell us about yourself..."></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label for="interests">Interests (comma separated)</label>
+                <input type="text" id="interests" placeholder="Tech, Business, Lifestyle">
+            </div>
+            
+            <button class="save-btn" onclick="saveProfile()">Save Changes</button>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    
+    <script>
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDBQosoOgqEa0LONZhEZUSVJjV1diFMdCk",
+            authDomain: "ethio-podcast-8a2f0.firebaseapp.com",
+            projectId: "ethio-podcast-8a2f0",
+            storageBucket: "ethio-podcast-8a2f0.firebasestorage.app",
+            messagingSenderId: "976795435136",
+            appId: "1:976795435136:web:fa34145b172223cdad6665",
+            measurementId: "G-268RCQ7PBM"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        
+        const API_BASE = 'http://localhost:3000';
+
+        // Show message
+        function showMessage(text, isError = false) {
+            const msgEl = document.getElementById('message');
+            msgEl.className = isError ? 'error' : 'success';
+            msgEl.textContent = text;
+            msgEl.style.display = 'block';
+            
+            setTimeout(() => {
+                msgEl.style.display = 'none';
+            }, 5000);
+        }
+
+        // Get Firebase token
+        async function getToken() {
+            const user = firebase.auth().currentUser;
+            if (!user) {
+                throw new Error('Not logged in');
+            }
+            return await user.getIdToken();
+        }
+
+        // Load current profile
+        async function loadProfile() {
+            try {
+                document.getElementById('loading').style.display = 'block';
+                
+                const token = await getToken();
+                const response = await fetch(`${API_BASE}/api/user/profile`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    const profile = data.data.profile;
+                    
+                    // Fill form
+                    document.getElementById('displayName').value = profile.displayName || '';
+                    document.getElementById('photoURL').value = profile.photoURL || '';
+                    document.getElementById('bio').value = profile.bio || '';
+                    document.getElementById('interests').value = (profile.interests || []).join(', ');
+                    
+                    // Update profile pic
+                    const picEl = document.getElementById('profilePic');
+                    picEl.src = profile.photoURL || 'https://via.placeholder.com/120?text=' + (profile.displayName?.[0] || 'U');
+                    
+                    document.getElementById('profileForm').style.display = 'block';
+                } else {
+                    showMessage('Failed to load profile: ' + data.message, true);
+                }
+            } catch (error) {
+                console.error('Load profile error:', error);
+                showMessage('Error: ' + error.message, true);
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        // Save profile
+        async function saveProfile() {
+            try {
+                const btn = document.querySelector('.save-btn');
+                btn.disabled = true;
+                btn.textContent = 'Saving...';
+                
+                const token = await getToken();
+                
+                // Get form values
+                const displayName = document.getElementById('displayName').value.trim();
+                const photoURL = document.getElementById('photoURL').value.trim();
+                const bio = document.getElementById('bio').value.trim();
+                const interestsInput = document.getElementById('interests').value.trim();
+                const interests = interestsInput ? interestsInput.split(',').map(i => i.trim()).filter(i => i) : [];
+                
+                // Make API call
+                const response = await fetch(`${API_BASE}/api/user/profile`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        displayName,
+                        photoURL,
+                        bio,
+                        interests
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showMessage('Profile updated successfully!');
+                    
+                    // Update profile pic if changed
+                    if (photoURL) {
+                        document.getElementById('profilePic').src = photoURL;
+                    }
+                    
+                    // Optionally redirect after 2 seconds
+                    setTimeout(() => {
+                        window.location.href = '/profile';
+                    }, 2000);
+                } else {
+                    showMessage('Failed to update: ' + data.message, true);
+                }
+            } catch (error) {
+                console.error('Save profile error:', error);
+                showMessage('Error: ' + error.message, true);
+            } finally {
+                const btn = document.querySelector('.save-btn');
+                btn.disabled = false;
+                btn.textContent = 'Save Changes';
+            }
+        }
+
+        // Update profile pic preview when URL changes
+        document.addEventListener('DOMContentLoaded', () => {
+            const photoURLInput = document.getElementById('photoURL');
+            const profilePic = document.getElementById('profilePic');
+            
+            photoURLInput.addEventListener('change', (e) => {
+                const url = e.target.value.trim();
+                if (url) {
+                    profilePic.src = url;
+                    profilePic.onerror = () => {
+                        profilePic.src = 'https://via.placeholder.com/120?text=Invalid';
+                    };
+                }
+            });
+        });
+
+        // Check auth and load profile
+        firebase.auth().onAuthStateChanged((user) => {
+            if (user) {
+                loadProfile();
+            } else {
+                showMessage('Please login first!', true);
+                setTimeout(() => {
+                    window.location.href = '/login';
+                }, 2000);
+            }
+        });
+    </script>
+</body>
+</html>

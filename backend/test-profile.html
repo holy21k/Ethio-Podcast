@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile & Settings Test - Ethiopodcasts</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { color: #333; margin-bottom: 20px; }
+        .section { 
+            background: white; 
+            padding: 20px; 
+            margin-bottom: 20px; 
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h2 { color: #555; margin-bottom: 15px; font-size: 18px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; color: #666; font-size: 14px; }
+        input[type="text"], input[type="email"], textarea, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        textarea { min-height: 80px; resize: vertical; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+        button:hover { background: #0056b3; }
+        button.danger { background: #dc3545; }
+        button.danger:hover { background: #c82333; }
+        button.secondary { background: #6c757d; }
+        button.secondary:hover { background: #5a6268; }
+        .checkbox-group { display: flex; align-items: center; margin-bottom: 10px; }
+        .checkbox-group input { width: auto; margin-right: 10px; }
+        .checkbox-group label { margin-bottom: 0; }
+        .output {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 15px;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+        .auth-status {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            border-left: 4px solid #007bff;
+        }
+        .auth-status.logged-out {
+            background: #fff3cd;
+            border-left-color: #ffc107;
+        }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @media (max-width: 768px) {
+            .grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎧 Ethiopodcasts - Profile & Settings Test</h1>
+        
+        <div class="auth-status" id="authStatus">
+            <strong>Authentication Status:</strong> <span id="authStatusText">Not logged in</span>
+        </div>
+
+        <!-- Login Section -->
+        <div class="section">
+            <h2>🔐 Login (Get Token)</h2>
+            <div class="form-group">
+                <label>Firebase Token (paste your token here):</label>
+                <input type="text" id="tokenInput" placeholder="Paste your Firebase ID token">
+            </div>
+            <button onclick="saveToken()">Save Token</button>
+            <button class="secondary" onclick="testAuth()">Test Auth</button>
+            <div class="output" id="authOutput"></div>
+        </div>
+
+        <div class="grid">
+            <!-- Profile Section -->
+            <div class="section">
+                <h2>👤 Profile Management</h2>
+                <button onclick="getProfile()">Get Profile</button>
+                <button class="secondary" onclick="showUpdateForm()">Update Profile</button>
+                
+                <div id="updateProfileForm" style="display:none; margin-top:15px;">
+                    <div class="form-group">
+                        <label>Display Name:</label>
+                        <input type="text" id="displayName" placeholder="Your name">
+                    </div>
+                    <div class="form-group">
+                        <label>Photo URL:</label>
+                        <input type="text" id="photoURL" placeholder="https://...">
+                    </div>
+                    <div class="form-group">
+                        <label>Bio:</label>
+                        <textarea id="bio" placeholder="Tell us about yourself"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Interests (comma separated):</label>
+                        <input type="text" id="interests" placeholder="Tech, Business, Lifestyle">
+                    </div>
+                    <button onclick="updateProfile()">Save Changes</button>
+                </div>
+                
+                <div class="output" id="profileOutput"></div>
+            </div>
+
+            <!-- Notifications Section -->
+            <div class="section">
+                <h2>🔔 Notification Preferences</h2>
+                <button onclick="getNotifications()">Get Preferences</button>
+                
+                <div id="notificationForm" style="margin-top:15px;">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="newPodcasts">
+                        <label>New Podcasts</label>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="channelUpdates">
+                        <label>Channel Updates</label>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="recommendations">
+                        <label>Recommendations</label>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="emailNotif">
+                        <label>Email Notifications</label>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="pushNotif">
+                        <label>Push Notifications</label>
+                    </div>
+                    <button onclick="updateNotifications()">Save Preferences</button>
+                </div>
+                
+                <div class="output" id="notificationOutput"></div>
+            </div>
+        </div>
+
+        <div class="grid">
+            <!-- Settings Section -->
+            <div class="section">
+                <h2>⚙️ App Settings</h2>
+                <button onclick="getSettings()">Get Settings</button>
+                
+                <div id="settingsForm" style="margin-top:15px;">
+                    <div class="form-group">
+                        <label>Language:</label>
+                        <select id="language">
+                            <option value="en">English</option>
+                            <option value="am">Amharic</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Theme:</label>
+                        <select id="theme">
+                            <option value="light">Light</option>
+                            <option value="dark">Dark</option>
+                            <option value="auto">Auto</option>
+                        </select>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="autoplay">
+                        <label>Autoplay</label>
+                    </div>
+                    <div class="form-group">
+                        <label>Playback Speed:</label>
+                        <select id="playbackSpeed">
+                            <option value="0.5">0.5x</option>
+                            <option value="0.75">0.75x</option>
+                            <option value="1.0">1.0x</option>
+                            <option value="1.25">1.25x</option>
+                            <option value="1.5">1.5x</option>
+                            <option value="2.0">2.0x</option>
+                        </select>
+                    </div>
+                    <button onclick="updateSettings()">Save Settings</button>
+                </div>
+                
+                <div class="output" id="settingsOutput"></div>
+            </div>
+
+            <!-- Privacy Section -->
+            <div class="section">
+                <h2>🔒 Privacy & Security</h2>
+                <button onclick="getPrivacy()">Get Privacy</button>
+                <button class="secondary" onclick="getSecurity()">Get Security Info</button>
+                
+                <div id="privacyForm" style="margin-top:15px;">
+                    <div class="form-group">
+                        <label>Profile Visibility:</label>
+                        <select id="profileVisibility">
+                            <option value="public">Public</option>
+                            <option value="private">Private</option>
+                            <option value="friends">Friends Only</option>
+                        </select>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="showHistory">
+                        <label>Show History</label>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="showWatchlist">
+                        <label>Show Watchlist</label>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="allowRecommendations">
+                        <label>Allow Recommendations</label>
+                    </div>
+                    <button onclick="updatePrivacy()">Save Privacy</button>
+                </div>
+                
+                <div class="output" id="privacyOutput"></div>
+            </div>
+        </div>
+
+        <!-- Support Section -->
+        <div class="section">
+            <h2>💬 Help & Support</h2>
+            <button onclick="getFAQ()">Get FAQ</button>
+            <button class="secondary" onclick="getAbout()">About App</button>
+            <button class="secondary" onclick="getTickets()">My Tickets</button>
+            
+            <div style="margin-top:15px;">
+                <h3 style="font-size:16px; margin-bottom:10px;">Submit Support Request</h3>
+                <div class="form-group">
+                    <label>Subject:</label>
+                    <input type="text" id="supportSubject" placeholder="Brief description">
+                </div>
+                <div class="form-group">
+                    <label>Message:</label>
+                    <textarea id="supportMessage" placeholder="Describe your issue"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Category:</label>
+                    <select id="supportCategory">
+                        <option value="general">General</option>
+                        <option value="technical">Technical</option>
+                        <option value="account">Account</option>
+                        <option value="billing">Billing</option>
+                        <option value="feedback">Feedback</option>
+                    </select>
+                </div>
+                <button onclick="submitSupport()">Submit Request</button>
+            </div>
+            
+            <div class="output" id="supportOutput"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3000';
+        let authToken = localStorage.getItem('authToken') || '';
+
+        // Update auth status display
+        function updateAuthStatus() {
+            const statusEl = document.getElementById('authStatus');
+            const textEl = document.getElementById('authStatusText');
+            
+            if (authToken) {
+                statusEl.classList.remove('logged-out');
+                textEl.textContent = 'Logged in ✓';
+                document.getElementById('tokenInput').value = authToken;
+            } else {
+                statusEl.classList.add('logged-out');
+                textEl.textContent = 'Not logged in - Please enter your token';
+            }
+        }
+
+        // Save token
+        function saveToken() {
+            authToken = document.getElementById('tokenInput').value.trim();
+            if (authToken) {
+                localStorage.setItem('authToken', authToken);
+                updateAuthStatus();
+                showOutput('authOutput', { success: true, message: 'Token saved!' }, true);
+            } else {
+                showOutput('authOutput', { error: 'Please enter a token' }, false);
+            }
+        }
+
+        // Test authentication
+        async function testAuth() {
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/login`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                const data = await response.json();
+                showOutput('authOutput', data, response.ok);
+            } catch (error) {
+                showOutput('authOutput', { error: error.message }, false);
+            }
+        }
+
+        // Profile functions
+        async function getProfile() {
+            try {
+                const response = await fetch(`${API_BASE}/api/user/profile`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                const data = await response.json();
+                showOutput('profileOutput', data, response.ok);
+                
+                if (response.ok && data.data.profile) {
+                    const p = data.data.profile;
+                    document.getElementById('displayName').value = p.displayName || '';
+                    document.getElementById('photoURL').value = p.photoURL || '';
+                    document.getElementById('bio').value = p.bio || '';
+                    document.getElementById('interests').value = (p.interests || []).join(', ');
+                }
+            } catch (error) {
+                showOutput('profileOutput', { error: error.message }, false);
+            }
+        }
+
+        function showUpdateForm() {
+            const form = document.getElementById('updateProfileForm');
+            form.style.display = form.style.display === 'none' ? 'block' : 'none';
+        }
+
+        async function updateProfile() {
+            try {
+                const interests = document.getElementById('interests').value
+                    .split(',')
+                    .map(i => i.trim())
+                    .filter(i => i);
+                
+                const response = await fetch(`${API_BASE}/api/user/profile`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        displayName: document.getElementById('displayName').value,
+                        photoURL: document.getElementById('photoURL').value,
+                        bio: document.getElementById('bio').value,
+                        interests
+                    })
+                });
+                const data = await response.json();
+                showOutput('profileOutput', data, response.ok);
+            } catch (error) {
+                showOutput('profileOutput', { error: error.message }, false);
+            }
+        }
+
+        // Notification functions
+        async function getNotifications() {
+            try {
+                const response = await fetch(`${API_BASE}/api/user/notifications`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                const data = await response.json();
+                showOutput('notificationOutput', data, response.ok);
+                
+                if (response.ok && data.data.notifications) {
+                    const n = data.data.notifications;
+                    document.getElementById('newPodcasts').checked = n.newPodcasts;
+                    document.getElementById('channelUpdates').checked = n.channelUpdates;
+                    document.getElementById('recommendations').checked = n.recommendations;
+                    document.getElementById('emailNotif').checked = n.email;
+                    document.getElementById('pushNotif').checked = n.push;
+                }
+            } catch (error) {
+                showOutput('notificationOutput', { error: error.message }, false);
+            }
+        }
+
+        async function updateNotifications() {
+            try {
+                const response = await fetch(`${API_BASE}/api/user/notifications`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        newPodcasts: document.getElementById('newPodcasts').checked,
+                        channelUpdates: document.getElementById('channelUpdates').checked,
+                        recommendations: document.getElementById('recommendations').checked,
+                        email: document.getElementById('emailNotif').checked,
+                        push: document.getElementById('pushNotif').checked
+                    })
+                });
+                const data = await response.json();
+                showOutput('notificationOutput', data, response.ok);
+            } catch (error) {
+                showOutput('notificationOutput', { error: error.message }, false);
+            }
+        }
+
+        // Settings functions
+        async function getSettings() {
+            try {
+                const response = await fetch(`${API_BASE}/api/user/settings`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                const data = await response.json();
+                showOutput('settingsOutput', data, response.ok);
+                
+                if (response.ok && data.data.settings) {
+                    const s = data.data.settings;
+                    document.getElementById('language').value = s.language || 'en';
+                    document.getElementById('theme').value = s.theme || 'light';
+                    document.getElementById('autoplay').checked = s.autoplay;
+                    document.getElementById('playbackSpeed').value = s.playbackSpeed || '1.0';
+                }
+            } catch (error) {
+                showOutput('settingsOutput', { error: error.message }, false);
+            }
+        }
+
+        async function updateSettings() {
+            try {
+                const response = await fetch(`${API_BASE}/api/user/settings`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        language: document.getElementById('language').value,
+                        theme: document.getElementById('theme').value,
+                        autoplay: document.getElementById('autoplay').checked,
+                        playbackSpeed: parseFloat(document.getElementById('playbackSpeed').value)
+                    })
+                });
+                const data = await response.json();
+                showOutput('settingsOutput', data, response.ok);
+            } catch (error) {
+                showOutput('settingsOutput', { error: error.message }, false);
+            }
+        }
+
+        // Privacy functions
+        async function getPrivacy() {
+            try {
+                const response = await fetch(`${API_BASE}/api/user/privacy`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                const data = await response.json();
+                showOutput('privacyOutput', data, response.ok);
+                
+                if (response.ok && data.data.privacy) {
+                    const p = data.data.privacy;
+                    document.getElementById('profileVisibility').value = p.profileVisibility || 'public';
+                    document.getElementById('showHistory').checked = p.showHistory;
+                    document.getElementById('showWatchlist').checked = p.showWatchlist;
+                    document.getElementById('allowRecommendations').checked = p.allowRecommendations;
+                }
+            } catch (error) {
+                showOutput('privacyOutput', { error: error.message }, false);
+            }
+        }
+
+        async function updatePrivacy() {
+            try {
+                const response = await fetch(`${API_BASE}/api/user/privacy`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        profileVisibility: document.getElementById('profileVisibility').value,
+                        showHistory: document.getElementById('showHistory').checked,
+                        showWatchlist: document.getElementById('showWatchlist').checked,
+                        allowRecommendations: document.getElementById('allowRecommendations').checked
+                    })
+                });
+                const data = await response.json();
+                showOutput('privacyOutput', data, response.ok);
+            } catch (error) {
+                showOutput('privacyOutput', { error: error.message }, false);
+            }
+        }
+
+        async function getSecurity() {
+            try {
+                const response = await fetch(`${API_BASE}/api/user/security`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                const data = await response.json();
+                showOutput('privacyOutput', data, response.ok);
+            } catch (error) {
+                showOutput('privacyOutput', { error: error.message }, false);
+            }
+        }
+
+        // Support functions
+        async function getFAQ() {
+            try {
+                const response = await fetch(`${API_BASE}/api/support/faq`);
+                const data = await response.json();
+                showOutput('supportOutput', data, response.ok);
+            } catch (error) {
+                showOutput('supportOutput', { error: error.message }, false);
+            }
+        }
+
+        async function getAbout() {
+            try {
+                const response = await fetch(`${API_BASE}/api/support/about`);
+                const data = await response.json();
+                showOutput('supportOutput', data, response.ok);
+            } catch (error) {
+                showOutput('supportOutput', { error: error.message }, false);
+            }
+        }
+
+        async function getTickets() {
+            try {
+                const response = await fetch(`${API_BASE}/api/support/tickets`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                const data = await response.json();
+                showOutput('supportOutput', data, response.ok);
+            } catch (error) {
+                showOutput('supportOutput', { error: error.message }, false);
+            }
+        }
+
+        async function submitSupport() {
+            try {
+                const response = await fetch(`${API_BASE}/api/support/contact`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        subject: document.getElementById('supportSubject').value,
+                        message: document.getElementById('supportMessage').value,
+                        category: document.getElementById('supportCategory').value
+                    })
+                });
+                const data = await response.json();
+                showOutput('supportOutput', data, response.ok);
+                
+                if (response.ok) {
+                    document.getElementById('supportSubject').value = '';
+                    document.getElementById('supportMessage').value = '';
+                }
+            } catch (error) {
+                showOutput('supportOutput', { error: error.message }, false);
+            }
+        }
+
+        // Helper function to display output
+        function showOutput(elementId, data, isSuccess) {
+            const output = document.getElementById(elementId);
+            output.className = 'output ' + (isSuccess ? 'success' : 'error');
+            output.textContent = JSON.stringify(data, null, 2);
+        }
+
+        // Initialize on load
+        updateAuthStatus();
+    </script>
+</body>
+</html>

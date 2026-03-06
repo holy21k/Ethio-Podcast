@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile Settings Test - Ethiopodcasts</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 1200px; margin: 20px auto; padding: 20px; }
+        .section { background: #f5f5f5; padding: 15px; margin: 15px 0; border-radius: 8px; }
+        h2 { color: #333; margin-top: 0; }
+        button { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin: 5px; }
+        button:hover { background: #0056b3; }
+        button.danger { background: #dc3545; }
+        button.danger:hover { background: #c82333; }
+        input, textarea, select { width: 100%; padding: 8px; margin: 5px 0; border: 1px solid #ddd; border-radius: 4px; }
+        .result { background: white; padding: 10px; margin: 10px 0; border-left: 4px solid #28a745; }
+        .error { border-left-color: #dc3545; }
+        pre { background: #fff; padding: 10px; overflow-x: auto; }
+        label { display: block; margin: 10px 0; }
+        .checkbox-label { display: flex; align-items: center; }
+        .checkbox-label input { width: auto; margin-right: 10px; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Profile Settings Test Suite</h1>
+    
+    <div class="section">
+        <h2>🔑 Authentication</h2>
+        <input type="text" id="token" placeholder="Paste your Firebase ID Token here">
+        <button onclick="testLogin()">Test Login</button>
+        <div id="loginResult"></div>
+    </div>
+
+    <div class="section">
+        <h2>👤 Profile Management</h2>
+        <button onclick="getProfile()">Get Profile</button>
+        <div id="profileResult"></div>
+        
+        <h3>Update Profile</h3>
+        <input type="text" id="displayName" placeholder="Display Name">
+        <input type="text" id="photoURL" placeholder="Photo URL">
+        <textarea id="bio" placeholder="Bio" rows="3"></textarea>
+        <input type="text" id="interests" placeholder="Interests (comma separated)">
+        <button onclick="updateProfile()">Update Profile</button>
+        <div id="updateProfileResult"></div>
+    </div>
+
+    <div class="section">
+        <h2>🔔 Notification Preferences</h2>
+        <button onclick="getNotifications()">Get Notifications</button>
+        <div id="notifResult"></div>
+        
+        <h3>Update Notifications</h3>
+        <label class="checkbox-label">
+            <input type="checkbox" id="newPodcasts" checked> New Podcasts
+        </label>
+        <label class="checkbox-label">
+            <input type="checkbox" id="channelUpdates" checked> Channel Updates
+        </label>
+        <label class="checkbox-label">
+            <input type="checkbox" id="recommendations" checked> Recommendations
+        </label>
+        <label class="checkbox-label">
+            <input type="checkbox" id="emailNotif" checked> Email Notifications
+        </label>
+        <label class="checkbox-label">
+            <input type="checkbox" id="pushNotif" checked> Push Notifications
+        </label>
+        <button onclick="updateNotifications()">Update Notifications</button>
+        <div id="updateNotifResult"></div>
+    </div>
+
+    <div class="section">
+        <h2>⚙️ Settings</h2>
+        <button onclick="getSettings()">Get Settings</button>
+        <div id="settingsResult"></div>
+        
+        <h3>Update Settings</h3>
+        <label>
+            Language:
+            <select id="language">
+                <option value="en">English</option>
+                <option value="am">Amharic</option>
+            </select>
+        </label>
+        <label>
+            Theme:
+            <select id="theme">
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+                <option value="auto">Auto</option>
+            </select>
+        </label>
+        <label class="checkbox-label">
+            <input type="checkbox" id="autoplay" checked> Autoplay
+        </label>
+        <label>
+            Playback Speed:
+            <select id="playbackSpeed">
+                <option value="0.5">0.5x</option>
+                <option value="0.75">0.75x</option>
+                <option value="1.0" selected>1.0x</option>
+                <option value="1.25">1.25x</option>
+                <option value="1.5">1.5x</option>
+                <option value="2.0">2.0x</option>
+            </select>
+        </label>
+        <label>
+            Quality:
+            <select id="quality">
+                <option value="auto" selected>Auto</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+            </select>
+        </label>
+        <label>
+            Data Usage:
+            <select id="dataUsage">
+                <option value="low">Low</option>
+                <option value="standard" selected>Standard</option>
+                <option value="high">High</option>
+            </select>
+        </label>
+        <button onclick="updateSettings()">Update Settings</button>
+        <div id="updateSettingsResult"></div>
+    </div>
+
+    <div class="section">
+        <h2>🔒 Privacy Settings</h2>
+        <button onclick="getPrivacy()">Get Privacy</button>
+        <div id="privacyResult"></div>
+        
+        <h3>Update Privacy</h3>
+        <label>
+            Profile Visibility:
+            <select id="profileVisibility">
+                <option value="public">Public</option>
+                <option value="private">Private</option>
+                <option value="friends">Friends Only</option>
+            </select>
+        </label>
+        <label class="checkbox-label">
+            <input type="checkbox" id="showHistory"> Show History
+        </label>
+        <label class="checkbox-label">
+            <input type="checkbox" id="showWatchlist"> Show Watchlist
+        </label>
+        <label class="checkbox-label">
+            <input type="checkbox" id="allowRecommendations" checked> Allow Recommendations
+        </label>
+        <button onclick="updatePrivacy()">Update Privacy</button>
+        <div id="updatePrivacyResult"></div>
+    </div>
+
+    <div class="section">
+        <h2>🔐 Security Info</h2>
+        <button onclick="getSecurity()">Get Security Info</button>
+        <div id="securityResult"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3000';
+
+        function getToken() {
+            const token = document.getElementById('token').value.trim();
+            if (!token) {
+                alert('Please enter your Firebase ID token first!');
+                throw new Error('No token');
+            }
+            return token;
+        }
+
+        function showResult(elementId, data, isError = false) {
+            const el = document.getElementById(elementId);
+            el.className = isError ? 'result error' : 'result';
+            el.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+        }
+
+        async function testLogin() {
+            try {
+                const token = getToken();
+                const response = await fetch(`${API_BASE}/api/auth/login`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+                showResult('loginResult', data, data.status === 'error');
+            } catch (e) {
+                showResult('loginResult', { error: e.message }, true);
+            }
+        }
+
+        async function getProfile() {
+            try {
+                const token = getToken();
+                const response = await fetch(`${API_BASE}/api/user/profile`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+                showResult('profileResult', data, data.status === 'error');
+                
+                // Pre-fill form if successful
+                if (data.status === 'success' && data.data.profile) {
+                    const p = data.data.profile;
+                    document.getElementById('displayName').value = p.displayName || '';
+                    document.getElementById('photoURL').value = p.photoURL || '';
+                    document.getElementById('bio').value = p.bio || '';
+                    document.getElementById('interests').value = (p.interests || []).join(', ');
+                }
+            } catch (e) {
+                showResult('profileResult', { error: e.message }, true);
+            }
+        }
+
+        async function updateProfile() {
+            try {
+                const token = getToken();
+                const interests = document.getElementById('interests').value
+                    .split(',')
+                    .map(i => i.trim())
+                    .filter(i => i);
+                
+                const body = {
+                    displayName: document.getElementById('displayName').value,
+                    photoURL: document.getElementById('photoURL').value,
+                    bio: document.getElementById('bio').value,
+                    interests
+                };
+
+                const response = await fetch(`${API_BASE}/api/user/profile`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(body)
+                });
+                const data = await response.json();
+                showResult('updateProfileResult', data, data.status === 'error');
+            } catch (e) {
+                showResult('updateProfileResult', { error: e.message }, true);
+            }
+        }
+
+        async function getNotifications() {
+            try {
+                const token = getToken();
+                const response = await fetch(`${API_BASE}/api/user/notifications`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+                showResult('notifResult', data, data.status === 'error');
+                
+                // Pre-fill checkboxes
+                if (data.status === 'success' && data.data.notifications) {
+                    const n = data.data.notifications;
+                    document.getElementById('newPodcasts').checked = n.newPodcasts !== false;
+                    document.getElementById('channelUpdates').checked = n.channelUpdates !== false;
+                    document.getElementById('recommendations').checked = n.recommendations !== false;
+                    document.getElementById('emailNotif').checked = n.email !== false;
+                    document.getElementById('pushNotif').checked = n.push !== false;
+                }
+            } catch (e) {
+                showResult('notifResult', { error: e.message }, true);
+            }
+        }
+
+        async function updateNotifications() {
+            try {
+                const token = getToken();
+                const body = {
+                    newPodcasts: document.getElementById('newPodcasts').checked,
+                    channelUpdates: document.getElementById('channelUpdates').checked,
+                    recommendations: document.getElementById('recommendations').checked,
+                    email: document.getElementById('emailNotif').checked,
+                    push: document.getElementById('pushNotif').checked
+                };
+
+                const response = await fetch(`${API_BASE}/api/user/notifications`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(body)
+                });
+                const data = await response.json();
+                showResult('updateNotifResult', data, data.status === 'error');
+            } catch (e) {
+                showResult('updateNotifResult', { error: e.message }, true);
+            }
+        }
+
+        async function getSettings() {
+            try {
+                const token = getToken();
+                const response = await fetch(`${API_BASE}/api/user/settings`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+                showResult('settingsResult', data, data.status === 'error');
+                
+                // Pre-fill form
+                if (data.status === 'success' && data.data.settings) {
+                    const s = data.data.settings;
+                    document.getElementById('language').value = s.language || 'en';
+                    document.getElementById('theme').value = s.theme || 'light';
+                    document.getElementById('autoplay').checked = s.autoplay !== false;
+                    document.getElementById('playbackSpeed').value = s.playbackSpeed || 1.0;
+                    document.getElementById('quality').value = s.quality || 'auto';
+                    document.getElementById('dataUsage').value = s.dataUsage || 'standard';
+                }
+            } catch (e) {
+                showResult('settingsResult', { error: e.message }, true);
+            }
+        }
+
+        async function updateSettings() {
+            try {
+                const token = getToken();
+                const body = {
+                    language: document.getElementById('language').value,
+                    theme: document.getElementById('theme').value,
+                    autoplay: document.getElementById('autoplay').checked,
+                    playbackSpeed: parseFloat(document.getElementById('playbackSpeed').value),
+                    quality: document.getElementById('quality').value,
+                    dataUsage: document.getElementById('dataUsage').value
+                };
+
+                const response = await fetch(`${API_BASE}/api/user/settings`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(body)
+                });
+                const data = await response.json();
+                showResult('updateSettingsResult', data, data.status === 'error');
+            } catch (e) {
+                showResult('updateSettingsResult', { error: e.message }, true);
+            }
+        }
+
+        async function getPrivacy() {
+            try {
+                const token = getToken();
+                const response = await fetch(`${API_BASE}/api/user/privacy`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+                showResult('privacyResult', data, data.status === 'error');
+                
+                // Pre-fill form
+                if (data.status === 'success' && data.data.privacy) {
+                    const p = data.data.privacy;
+                    document.getElementById('profileVisibility').value = p.profileVisibility || 'public';
+                    document.getElementById('showHistory').checked = p.showHistory === true;
+                    document.getElementById('showWatchlist').checked = p.showWatchlist === true;
+                    document.getElementById('allowRecommendations').checked = p.allowRecommendations !== false;
+                }
+            } catch (e) {
+                showResult('privacyResult', { error: e.message }, true);
+            }
+        }
+
+        async function updatePrivacy() {
+            try {
+                const token = getToken();
+                const body = {
+                    profileVisibility: document.getElementById('profileVisibility').value,
+                    showHistory: document.getElementById('showHistory').checked,
+                    showWatchlist: document.getElementById('showWatchlist').checked,
+                    allowRecommendations: document.getElementById('allowRecommendations').checked
+                };
+
+                const response = await fetch(`${API_BASE}/api/user/privacy`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(body)
+                });
+                const data = await response.json();
+                showResult('updatePrivacyResult', data, data.status === 'error');
+            } catch (e) {
+                showResult('updatePrivacyResult', { error: e.message }, true);
+            }
+        }
+
+        async function getSecurity() {
+            try {
+                const token = getToken();
+                const response = await fetch(`${API_BASE}/api/user/security`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+                showResult('securityResult', data, data.status === 'error');
+            } catch (e) {
+                showResult('securityResult', { error: e.message }, true);
+            }
+        }
+    </script>
+</body>
+</html>

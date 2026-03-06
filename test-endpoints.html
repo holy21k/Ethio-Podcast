@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test New Endpoints</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .result {
+            background: #f5f5f5;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        input, textarea, select {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .error {
+            color: red;
+        }
+        .success {
+            color: green;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test New Endpoints</h1>
+    
+    <div class="section">
+        <h2>🔑 Authentication</h2>
+        <p>Enter your Firebase token (get it from your app after login):</p>
+        <input type="text" id="token" placeholder="Pa
+<body>
+    <h1>🧪 Test New Endpoints</h1>
+    
+    <div class="section">
+        <h2>🔑 Authentication</h2>
+        <label>Firebase Token (or use "test-token" for mock mode):</label>
+        <input type="text" id="token" placeholder="Paste your Firebase ID token here" value="test-token">
+        <button onclick="testAuth()">Test Auth</button>
+        <div id="auth-result" class="result"></div>
+    </div>
+
+    <div class="section">
+        <h2>👤 Profile Management</h2>
+        <button onclick="getProfile()">Get Profile</button>
+        <button onclick="updateProfile()">Update Profile</button>
+        <div id="profile-result" class="result"></div>
+        
+        <div style="margin-top: 20px;">
+            <label>Display Name:</label>
+            <input type="text" id="displayName" placeholder="Your Name">
+            
+            <label>Bio:</label>
+            <textarea id="bio" placeholder="Tell us about yourself"></textarea>
+            
+            <label>Interests (comma separated):</label>
+            <input type="text" id="interests" placeholder="Tech, Business, Lifestyle">
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>🔔 Notifications</h2>
+        <button onclick="getNotifications()">Get Preferences</button>
+        <button onclick="updateNotifications()">Update Preferences</button>
+        <div id="notif-result" class="result"></div>
+        
+        <div style="margin-top: 20px;">
+            <label><input type="checkbox" id="newPodcasts" checked> New Podcasts</label>
+            <label><input type="checkbox" id="channelUpdates" checked> Channel Updates</label>
+            <label><input type="checkbox" id="recommendations" checked> Recommendations</label>
+            <label><input type="checkbox" id="email" checked> Email Notifications</label>
+            <label><input type="checkbox" id="push" checked> Push Notifications</label>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>⚙️ Settings</h2>
+        <button onclick="getSettings()">Get Settings</button>
+        <button onclick="updateSettings()">Update Settings</button>
+        <div id="settings-result" class="result"></div>
+        
+        <div style="margin-top: 20px;">
+            <label>Theme:</label>
+            <select id="theme">
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+                <option value="auto">Auto</option>
+            </select>
+            
+            <label>Language:</label>
+            <select id="language">
+                <option value="en">English</option>
+                <option value="am">Amharic</option>
+            </select>
+            
+            <label>Playback Speed:</label>
+            <select id="playbackSpeed">
+                <option value="0.5">0.5x</option>
+                <option value="0.75">0.75x</option>
+                <option value="1.0" selected>1.0x</option>
+                <option value="1.25">1.25x</option>
+                <option value="1.5">1.5x</option>
+                <option value="2.0">2.0x</option>
+            </select>
+            
+            <label><input type="checkbox" id="autoplay" checked> Autoplay</label>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>🔒 Privacy & Security</h2>
+        <button onclick="getPrivacy()">Get Privacy</button>
+        <button onclick="updatePrivacy()">Update Privacy</button>
+        <button onclick="getSecurity()">Get Security Info</button>
+        <div id="privacy-result" class="result"></div>
+        
+        <div style="margin-top: 20px;">
+            <label>Profile Visibility:</label>
+            <select id="profileVisibility">
+                <option value="public">Public</option>
+                <option value="private">Private</option>
+                <option value="friends">Friends Only</option>
+            </select>
+            
+            <label><input type="checkbox" id="showHistory"> Show History</label>
+            <label><input type="checkbox" id="showWatchlist"> Show Watchlist</label>
+            <label><input type="checkbox" id="allowRecommendations" checked> Allow Recommendations</label>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>💬 Help & Support</h2>
+        <button onclick="getFAQ()">Get FAQ</button>
+        <button onclick="submitSupport()">Submit Ticket</button>
+        <button onclick="getTickets()">My Tickets</button>
+        <button onclick="getAbout()">About App</button>
+        <div id="support-result" class="result"></div>
+        
+        <div style="margin-top: 20px;">
+            <label>Subject:</label>
+            <input type="text" id="subject" placeholder="Issue subject">
+            
+            <label>Message:</label>
+            <textarea id="message" placeholder="Describe your issue"></textarea>
+            
+            <label>Category:</label>
+            <select id="category">
+                <option value="general">General</option>
+                <option value="technical">Technical</option>
+                <option value="account">Account</option>
+                <option value="feedback">Feedback</option>
+            </select>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3000';
+
+        function getToken() {
+            return document.getElementById('token').value;
+        }
+
+        function showResult(elementId, data, isError = false) {
+            const element = document.getElementById(elementId);
+            element.textContent = JSON.stringify(data, null, 2);
+            element.className = isError ? 'result error' : 'result success';
+        }
+
+        async function apiCall(endpoint, method = 'GET', body = null, requireAuth = true) {
+            try {
+                const headers = {
+                    'Content-Type': 'application/json'
+                };
+
+                if (requireAuth) {
+                    headers['Authorization'] = `Bearer ${getToken()}`;
+                }
+
+                const options = {
+                    method,
+                    headers
+                };
+
+                if (body) {
+                    options.body = JSON.stringify(body);
+                }
+
+                const response = await fetch(`${API_BASE}${endpoint}`, options);
+                const data = await response.json();
+                
+                return { data, status: response.status };
+            } catch (error) {
+                return { 
+                    data: { status: 'error', message: error.message }, 
+                    status: 500 
+                };
+            }
+        }
+
+        // Auth
+        async function testAuth() {
+            const result = await apiCall('/api/auth/login');
+            showResult('auth-result', result.data, result.data.status === 'error');
+        }
+
+        // Profile
+        async function getProfile() {
+            const result = await apiCall('/api/user/profile');
+            showResult('profile-result', result.data, result.data.status === 'error');
+            
+            if (result.data.status === 'success') {
+                const profile = result.data.data.profile;
+                document.getElementById('displayName').value = profile.displayName || '';
+                document.getElementById('bio').value = profile.bio || '';
+                document.getElementById('interests').value = (profile.interests || []).join(', ');
+            }
+        }
+
+        async function updateProfile() {
+            const displayName = document.getElementById('displayName').value;
+            const bio = document.getElementById('bio').value;
+            const interests = document.getElementById('interests').value
+                .split(',')
+                .map(i => i.trim())
+                .filter(i => i);
+
+            const result = await apiCall('/api/user/profile', 'PUT', {
+                displayName,
+                bio,
+                interests
+            });
+            showResult('profile-result', result.data, result.data.status === 'error');
+        }
+
+        // Notifications
+        async function getNotifications() {
+            const result = await apiCall('/api/user/notifications');
+            showResult('notif-result', result.data, result.data.status === 'error');
+            
+            if (result.data.status === 'success') {
+                const notif = result.data.data.notifications;
+                document.getElementById('newPodcasts').checked = notif.newPodcasts;
+                document.getElementById('channelUpdates').checked = notif.channelUpdates;
+                document.getElementById('recommendations').checked = notif.recommendations;
+                document.getElementById('email').checked = notif.email;
+                document.getElementById('push').checked = notif.push;
+            }
+        }
+
+        async function updateNotifications() {
+            const result = await apiCall('/api/user/notifications', 'PUT', {
+                newPodcasts: document.getElementById('newPodcasts').checked,
+                channelUpdates: document.getElementById('channelUpdates').checked,
+                recommendations: document.getElementById('recommendations').checked,
+                email: document.getElementById('email').checked,
+                push: document.getElementById('push').checked
+            });
+            showResult('notif-result', result.data, result.data.status === 'error');
+        }
+
+        // Settings
+        async function getSettings() {
+            const result = await apiCall('/api/user/settings');
+            showResult('settings-result', result.data, result.data.status === 'error');
+            
+            if (result.data.status === 'success') {
+                const settings = result.data.data.settings;
+                document.getElementById('theme').value = settings.theme;
+                document.getElementById('language').value = settings.language;
+                document.getElementById('playbackSpeed').value = settings.playbackSpeed;
+                document.getElementById('autoplay').checked = settings.autoplay;
+            }
+        }
+
+        async function updateSettings() {
+            const result = await apiCall('/api/user/settings', 'PUT', {
+                theme: document.getElementById('theme').value,
+                language: document.getElementById('language').value,
+                playbackSpeed: parseFloat(document.getElementById('playbackSpeed').value),
+                autoplay: document.getElementById('autoplay').checked
+            });
+            showResult('settings-result', result.data, result.data.status === 'error');
+        }
+
+        // Privacy
+        async function getPrivacy() {
+            const result = await apiCall('/api/user/privacy');
+            showResult('privacy-result', result.data, result.data.status === 'error');
+            
+            if (result.data.status === 'success') {
+                const privacy = result.data.data.privacy;
+                document.getElementById('profileVisibility').value = privacy.profileVisibility;
+                document.getElementById('showHistory').checked = privacy.showHistory;
+                document.getElementById('showWatchlist').checked = privacy.showWatchlist;
+                document.getElementById('allowRecommendations').checked = privacy.allowRecommendations;
+            }
+        }
+
+        async function updatePrivacy() {
+            const result = await apiCall('/api/user/privacy', 'PUT', {
+                profileVisibility: document.getElementById('profileVisibility').value,
+                showHistory: document.getElementById('showHistory').checked,
+                showWatchlist: document.getElementById('showWatchlist').checked,
+                allowRecommendations: document.getElementById('allowRecommendations').checked
+            });
+            showResult('privacy-result', result.data, result.data.status === 'error');
+        }
+
+        async function getSecurity() {
+            const result = await apiCall('/api/user/security');
+            showResult('privacy-result', result.data, result.data.status === 'error');
+        }
+
+        // Support
+        async function getFAQ() {
+            const result = await apiCall('/api/support/faq', 'GET', null, false);
+            showResult('support-result', result.data, result.data.status === 'error');
+        }
+
+        async function submitSupport() {
+            const subject = document.getElementById('subject').value;
+            const message = document.getElementById('message').value;
+            const category = document.getElementById('category').value;
+
+            if (!subject || !message) {
+                showResult('support-result', { error: 'Subject and message required' }, true);
+                return;
+            }
+
+            const result = await apiCall('/api/support/contact', 'POST', {
+                subject,
+                message,
+                category
+            });
+            showResult('support-result', result.data, result.data.status === 'error');
+        }
+
+        async function getTickets() {
+            const result = await apiCall('/api/support/tickets');
+            showResult('support-result', result.data, result.data.status === 'error');
+        }
+
+        async function getAbout() {
+            const result = await apiCall('/api/support/about', 'GET', null, false);
+            showResult('support-result', result.data, result.data.status === 'error');
+        }
+    </script>
+</body>
+</html>

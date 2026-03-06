@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - Ethiopodcasts</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #1a1a2e;
+            border-radius: 20px;
+            padding: 40px;
+            color: white;
+        }
+        .back-btn {
+            color: #a0a0a0;
+            text-decoration: none;
+            display: inline-block;
+            margin-bottom: 20px;
+        }
+        h1 { margin-bottom: 30px; }
+        .section {
+            background: #16213e;
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+        }
+        .section h2 {
+            font-size: 20px;
+            margin-bottom: 20px;
+            color: #667eea;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #a0a0a0;
+            font-size: 14px;
+        }
+        select, input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            background: #1a1a2e;
+            border: 1px solid #2d3561;
+            border-radius: 8px;
+            color: white;
+            font-size: 16px;
+        }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px;
+            background: #1a1a2e;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+        .checkbox-group input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+        .checkbox-group label {
+            margin: 0;
+            cursor: pointer;
+            flex: 1;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        button:hover { transform: translateY(-2px); }
+        button:disabled { opacity: 0.6; cursor: not-allowed; }
+        .message {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        .message.success { background: #00C851; }
+        .message.error { background: #ff4444; }
+        .loading { text-align: center; padding: 40px; color: #a0a0a0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/profile" class="back-btn">← Back to Profile</a>
+        <h1>Settings</h1>
+        
+        <div id="message" class="message"></div>
+        <div id="loading" class="loading">Loading settings...</div>
+        
+        <div id="settingsContent" style="display: none;">
+            <!-- Notifications Section -->
+            <div class="section">
+                <h2>🔔 Notifications</h2>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="newPodcasts">
+                    <label for="newPodcasts">New Podcasts</label>
+                </div>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="channelUpdates">
+                    <label for="channelUpdates">Channel Updates</label>
+                </div>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="recommendations">
+                    <label for="recommendations">Recommendations</label>
+                </div>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="emailNotif">
+                    <label for="emailNotif">Email Notifications</label>
+                </div>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="pushNotif">
+                    <label for="pushNotif">Push Notifications</label>
+                </div>
+                <button onclick="saveNotifications()">Save Notifications</button>
+            </div>
+
+            <!-- App Settings Section -->
+            <div class="section">
+                <h2>⚙️ App Settings</h2>
+                <div class="form-group">
+                    <label for="language">Language</label>
+                    <select id="language">
+                        <option value="en">English</option>
+                        <option value="am">አማርኛ (Amharic)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="theme">Theme</label>
+                    <select id="theme">
+                        <option value="light">Light</option>
+                        <option value="dark">Dark</option>
+                        <option value="auto">Auto</option>
+                    </select>
+                </div>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="autoplay">
+                    <label for="autoplay">Autoplay Next Episode</label>
+                </div>
+                <div class="form-group">
+                    <label for="playbackSpeed">Playback Speed</label>
+                    <select id="playbackSpeed">
+                        <option value="0.5">0.5x</option>
+                        <option value="0.75">0.75x</option>
+                        <option value="1.0">1.0x (Normal)</option>
+                        <option value="1.25">1.25x</option>
+                        <option value="1.5">1.5x</option>
+                        <option value="2.0">2.0x</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="quality">Video Quality</label>
+                    <select id="quality">
+                        <option value="auto">Auto</option>
+                        <option value="low">Low (Save Data)</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="dataUsage">Data Usage</label>
+                    <select id="dataUsage">
+                        <option value="low">Low</option>
+                        <option value="standard">Standard</option>
+                        <option value="high">High</option>
+                    </select>
+                </div>
+                <button onclick="saveSettings()">Save Settings</button>
+            </div>
+
+            <!-- Privacy Section -->
+            <div class="section">
+                <h2>🔒 Privacy</h2>
+                <div class="form-group">
+                    <label for="profileVisibility">Profile Visibility</label>
+                    <select id="profileVisibility">
+                        <option value="public">Public</option>
+                        <option value="private">Private</option>
+                        <option value="friends">Friends Only</option>
+                    </select>
+                </div>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="showHistory">
+                    <label for="showHistory">Show Listening History</label>
+                </div>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="showWatchlist">
+                    <label for="showWatchlist">Show Watchlist</label>
+                </div>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="allowRecommendations">
+                    <label for="allowRecommendations">Allow Personalized Recommendations</label>
+                </div>
+                <button onclick="savePrivacy()">Save Privacy Settings</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Get Firebase token
+        async function getToken() {
+            const user = firebase.auth().currentUser;
+            if (!user) {
+                throw new Error('Not logged in');
+            }
+            return await user.getIdToken();
+        }
+
+        // Show message
+        function showMessage(text, isError = false) {
+            const msgEl = document.getElementById('message');
+            msgEl.className = 'message ' + (isError ? 'error' : 'success');
+            msgEl.textContent = text;
+            msgEl.style.display = 'block';
+            
+            setTimeout(() => {
+                msgEl.style.display = 'none';
+            }, 5000);
+        }
+
+        // Load all settings
+        async function loadAllSettings() {
+            try {
+                document.getElementById('loading').style.display = 'block';
+                const token = await getToken();
+                
+                // Load notifications
+                const notifRes = await fetch(`${API_BASE}/api/user/notifications`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const notifData = await notifRes.json();
+                
+                if (notifData.status === 'success') {
+                    const n = notifData.data.notifications;
+                    document.getElementById('newPodcasts').checked = n.newPodcasts !== false;
+                    document.getElementById('channelUpdates').checked = n.channelUpdates !== false;
+                    document.getElementById('recommendations').checked = n.recommendations !== false;
+                    document.getElementById('emailNotif').checked = n.email !== false;
+                    document.getElementById('pushNotif').checked = n.push !== false;
+                }
+                
+                // Load settings
+                const settingsRes = await fetch(`${API_BASE}/api/user/settings`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const settingsData = await settingsRes.json();
+                
+                if (settingsData.status === 'success') {
+                    const s = settingsData.data.settings;
+                    document.getElementById('language').value = s.language || 'en';
+                    document.getElementById('theme').value = s.theme || 'light';
+                    document.getElementById('autoplay').checked = s.autoplay !== false;
+                    document.getElementById('playbackSpeed').value = s.playbackSpeed || 1.0;
+                    document.getElementById('quality').value = s.quality || 'auto';
+                    document.getElementById('dataUsage').value = s.dataUsage || 'standard';
+                }
+                
+                // Load privacy
+                const privacyRes = await fetch(`${API_BASE}/api/user/privacy`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const privacyData = await privacyRes.json();
+                
+                if (privacyData.status === 'success') {
+                    const p = privacyData.data.privacy;
+                    document.getElementById('profileVisibility').value = p.profileVisibility || 'public';
+                    document.getElementById('showHistory').checked = p.showHistory === true;
+                    document.getElementById('showWatchlist').checked = p.showWatchlist === true;
+                    document.getElementById('allowRecommendations').checked = p.allowRecommendations !== false;
+                }
+                
+                document.getElementById('settingsContent').style.display = 'block';
+            } catch (error) {
+                console.error('Load settings error:', error);
+                showMessage('Error loading settings: ' + error.message, true);
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        // Save notifications
+        async function saveNotifications() {
+            try {
+                const token = await getToken();
+                const body = {
+                    newPodcasts: document.getElementById('newPodcasts').checked,
+                    channelUpdates: document.getElementById('channelUpdates').checked,
+                    recommendations: document.getElementById('recommendations').checked,
+                    email: document.getElementById('emailNotif').checked,
+                    push: document.getElementById('pushNotif').checked
+                };
+
+                const response = await fetch(`${API_BASE}/api/user/notifications`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(body)
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showMessage('Notification preferences saved!');
+                } else {
+                    showMessage('Failed: ' + data.message, true);
+                }
+            } catch (error) {
+                showMessage('Error: ' + error.message, true);
+            }
+        }
+
+        // Save settings
+        async function saveSettings() {
+            try {
+                const token = await getToken();
+                const body = {
+                    language: document.getElementById('language').value,
+                    theme: document.getElementById('theme').value,
+                    autoplay: document.getElementById('autoplay').checked,
+                    playbackSpeed: parseFloat(document.getElementById('playbackSpeed').value),
+                    quality: document.getElementById('quality').value,
+                    dataUsage: document.getElementById('dataUsage').value
+                };
+
+                const response = await fetch(`${API_BASE}/api/user/settings`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(body)
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showMessage('Settings saved!');
+                } else {
+                    showMessage('Failed: ' + data.message, true);
+                }
+            } catch (error) {
+                showMessage('Error: ' + error.message, true);
+            }
+        }
+
+        // Save privacy
+        async function savePrivacy() {
+            try {
+                const token = await getToken();
+                const body = {
+                    profileVisibility: document.getElementById('profileVisibility').value,
+                    showHistory: document.getElementById('showHistory').checked,
+                    showWatchlist: document.getElementById('showWatchlist').checked,
+                    allowRecommendations: document.getElementById('allowRecommendations').checked
+                };
+
+                const response = await fetch(`${API_BASE}/api/user/privacy`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(body)
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showMessage('Privacy settings saved!');
+                } else {
+                    showMessage('Failed: ' + data.message, true);
+                }
+            } catch (error) {
+                showMessage('Error: ' + error.message, true);
+            }
+        }
+
+        // Initialize
+        firebase.auth().onAuthStateChanged((user) => {
+            if (user) {
+                loadAllSettings();
+            } else {
+                showMessage('Please login first!', true);
+                setTimeout(() => {
+                    window.location.href = '/login';
+                }, 2000);
+            }
+        });
+    </script>
+</body>
+</html>
