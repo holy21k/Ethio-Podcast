@@ -7,7 +7,6 @@ __pycache__/
 
 # Firebase & API Keys - KEEP SECRET!
 backend/config/firebase-config.js
-backend/config/supabase-config.js
 backend/config/serviceAccountKey.json
 *serviceAccount*.json
 *firebase*.json

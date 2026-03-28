@@ -83,6 +83,19 @@ function getAvatarURL(email, displayName) {
 
 app.get('/api/health', (req, res) => res.json(success({ server: 'Ethiopodcasts API v2', status: 'healthy' })));
 
+app.get('/api/debug-firebase', (req, res) => {
+    const key = process.env.FIREBASE_PRIVATE_KEY || '';
+    res.json({
+        project_id: process.env.FIREBASE_PROJECT_ID || 'MISSING',
+        client_email: process.env.FIREBASE_CLIENT_EMAIL || 'MISSING',
+        private_key_set: !!key,
+        private_key_length: key.length,
+        has_begin: key.includes('BEGIN PRIVATE KEY'),
+        has_newlines: key.includes('\n'),
+        firebase_apps: admin.apps.length
+    });
+});
+
 app.get('/api/watchlist', (req, res) => res.json(success({ channels: WATCHLIST, total: WATCHLIST.length })));
 
 app.get('/api/home', (req, res) => {
