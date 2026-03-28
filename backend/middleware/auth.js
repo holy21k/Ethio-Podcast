@@ -23,7 +23,7 @@ if (serviceAccount) {
     }
 }
 
-const db = admin.firestore();
+const db = admin.apps.length > 0 ? admin.firestore() : null;
 
 // 🎯 Auth Middleware: Verify Firebase ID Token
 const verifyToken = async (req, res, next) => {
