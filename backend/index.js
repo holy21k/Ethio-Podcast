@@ -222,7 +222,6 @@ app.get('/api/player/:id', (req, res) => {
         res.status(500).json({ status: 'error', message: e.message });
     }
 });
-
 app.get('/api/search', (req, res) => {
     try {
         const { q, limit = 50 } = req.query;
@@ -232,7 +231,9 @@ app.get('/api/search', (req, res) => {
         const results = Object.values(loadPodcasts())
             .filter(d =>
                 (d.title || '').toLowerCase().includes(sq) ||
-                (d.uploader || '').toLowerCase().includes(sq)
+                (d.uploader || '').toLowerCase().includes(sq) ||
+                (d.category || '').toLowerCase().includes(sq) ||
+                (d.display_title || '').toLowerCase().includes(sq)
             )
             .slice(0, parseInt(limit))
             .map(d => ({
@@ -251,7 +252,6 @@ app.get('/api/search', (req, res) => {
         res.status(500).json({ status: 'error', message: e.message });
     }
 });
-
 app.get('/api/channels/:channel', (req, res) => {
     try {
         const ch = req.params.channel.startsWith('@') ? req.params.channel : `@${req.params.channel}`;
