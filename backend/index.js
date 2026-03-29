@@ -9,14 +9,13 @@ const port = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
-
 app.use(express.static(__dirname));
 app.use(express.static(path.join(__dirname, '..')));
 
 const { verifyToken, optionalAuth, requireAdmin, db, admin } = require('./middleware/auth');
 const { supabase } = require('./config/supabase-config');
 
-const USERS_FILE = path.join(__dirname, 'users.json');
+// podcasts.json is read-only (fine on Vercel — it's bundled at deploy time)
 const PODCASTS_FILE = path.join(__dirname, 'podcasts.json');
 
 const WATCHLIST = [
@@ -27,26 +26,61 @@ const WATCHLIST = [
     "@EgregnawPodcast"
 ];
 
-function loadUsers() {
-    try {
-        if (fs.existsSync(USERS_FILE)) {
-            return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
-        }
-    } catch (e) {
-        console.error('Error loading users:', e.message);
-    }
-    return { users: {}, watchlists: {}, history: {}, last_playback_positions: {} };
+// ─── Supabase DB helpers ───────────────────────────────────────────────────
+
+async function getProfile(uid) {
+    const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('uid', uid)
+        .single();
+    if (error && error.code !== 'PGRST116') throw error; // PGRST116 = not found
+    return data || null;
 }
 
-function saveUsers(data) {
-    try {
-        fs.writeFileSync(USERS_FILE, JSON.stringify(data, null, 2));
-        return true;
-    } catch (e) {
-        console.error('Error saving users:', e.message);
-        return false;
-    }
+async function upsertProfile(uid, fields) {
+    const { data, error } = await supabase
+        .from('users')
+        .upsert({ uid, ...fields, updated_at: new Date().toISOString() }, { onConflict: 'uid' })
+        .select()
+        .single();
+    if (error) throw error;
+    return data;
 }
+
+async function getWatchlist(uid) {
+    const { data, error } = await supabase
+        .from('watchlists')
+        .select('*')
+        .eq('uid', uid)
+        .order('added_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+}
+
+async function getHistory(uid, limit = 50) {
+    const { data, error } = await supabase
+        .from('history')
+        .select('*')
+        .eq('uid', uid)
+        .order('played_at', { ascending: false })
+        .limit(limit);
+    if (error) throw error;
+    return data || [];
+}
+
+async function getPosition(uid, podcastId) {
+    const { data, error } = await supabase
+        .from('playback_positions')
+        .select('*')
+        .eq('uid', uid)
+        .eq('podcast_id', podcastId)
+        .single();
+    if (error && error.code !== 'PGRST116') throw error;
+    return data || null;
+}
+
+// ─── Misc helpers ─────────────────────────────────────────────────────────
 
 function loadPodcasts() {
     try {
@@ -81,6 +115,8 @@ function getAvatarURL(email, displayName) {
     return null;
 }
 
+// ─── Routes ───────────────────────────────────────────────────────────────
+
 app.get('/api/health', (req, res) => res.json(success({ server: 'Ethiopodcasts API v2', status: 'healthy' })));
 
 app.get('/api/debug-firebase', (req, res) => {
@@ -92,7 +128,9 @@ app.get('/api/debug-firebase', (req, res) => {
         private_key_length: key.length,
         has_begin: key.includes('BEGIN PRIVATE KEY'),
         has_newlines: key.includes('\n'),
-        firebase_apps: admin.apps.length
+        firebase_apps: admin.apps.length,
+        supabase_url: process.env.SUPABASE_URL ? 'SET' : 'MISSING',
+        supabase_key: process.env.SUPABASE_SERVICE_KEY ? 'SET' : 'MISSING'
     });
 });
 
@@ -199,8 +237,7 @@ app.get('/api/podcasts/:id', (req, res) => {
         const d = loadPodcasts()[req.params.id];
         if (!d) return res.status(404).json({ status: 'error', message: 'Podcast not found' });
         res.json(success({
-            id: d.id,
-            title: d.title || '',
+            id: d.id, title: d.title || '',
             display_title: d.display_title || d.title || '',
             description: d.description || '',
             uploader: d.uploader || 'Unknown',
@@ -222,8 +259,7 @@ app.get('/api/player/:id', (req, res) => {
         const d = loadPodcasts()[req.params.id];
         if (!d) return res.status(404).json({ status: 'error', message: 'Podcast not found' });
         res.json(success({
-            id: d.id,
-            title: d.display_title || d.title || '',
+            id: d.id, title: d.display_title || d.title || '',
             uploader: d.uploader || 'Unknown',
             category: d.category || 'General',
             duration: formatDuration(d.duration || 0),
@@ -236,6 +272,7 @@ app.get('/api/player/:id', (req, res) => {
         res.status(500).json({ status: 'error', message: e.message });
     }
 });
+
 app.get('/api/search', (req, res) => {
     try {
         const { q, limit = 50 } = req.query;
@@ -251,8 +288,7 @@ app.get('/api/search', (req, res) => {
             )
             .slice(0, parseInt(limit))
             .map(d => ({
-                id: d.id,
-                title: d.title || '',
+                id: d.id, title: d.title || '',
                 display_title: d.display_title || d.title || '',
                 uploader: d.uploader || 'Unknown',
                 category: d.category || 'General',
@@ -266,6 +302,7 @@ app.get('/api/search', (req, res) => {
         res.status(500).json({ status: 'error', message: e.message });
     }
 });
+
 app.get('/api/channels/:channel', (req, res) => {
     try {
         const ch = req.params.channel.startsWith('@') ? req.params.channel : `@${req.params.channel}`;
@@ -281,8 +318,7 @@ app.get('/api/channels/:channel', (req, res) => {
         res.json(success({
             channel: ch,
             podcasts: paginated.map(d => ({
-                id: d.id,
-                title: d.title || '',
+                id: d.id, title: d.title || '',
                 display_title: d.display_title || d.title || '',
                 category: d.category || 'General',
                 duration: formatDuration(d.duration || 0),
@@ -291,8 +327,7 @@ app.get('/api/channels/:channel', (req, res) => {
                 created_at: d.created_at
             })),
             pagination: {
-                page: parseInt(page),
-                limit: parseInt(limit),
+                page: parseInt(page), limit: parseInt(limit),
                 total: podcastList.length,
                 has_more: start + parseInt(limit) < podcastList.length
             }
@@ -313,20 +348,25 @@ app.get('/api/stats', (req, res) => {
     }
 });
 
-app.get('/api/auth/login', verifyToken, (req, res) => {
+// ─── Auth ─────────────────────────────────────────────────────────────────
+
+app.get('/api/auth/login', verifyToken, async (req, res) => {
     try {
-        const users = loadUsers();
-        const userData = users.users[req.user.uid] || {
-            uid: req.user.uid,
-            email: req.user.email,
-            displayName: req.user.name || req.user.email?.split('@')[0],
-            photoURL: req.user.picture || getAvatarURL(req.user.email, req.user.name),
-            createdAt: new Date().toISOString()
-        };
-        userData.lastLoginAt = new Date().toISOString();
-        users.users[req.user.uid] = userData;
-        saveUsers(users);
-        res.json(success({ user: userData, isAuthenticated: true }));
+        let profile = await getProfile(req.user.uid);
+        if (!profile) {
+            profile = await upsertProfile(req.user.uid, {
+                email: req.user.email || '',
+                display_name: req.user.name || req.user.email?.split('@')[0] || 'User',
+                photo_url: req.user.picture || getAvatarURL(req.user.email, req.user.name),
+                bio: '',
+                interests: [],
+                created_at: new Date().toISOString(),
+                last_login_at: new Date().toISOString()
+            });
+        } else {
+            profile = await upsertProfile(req.user.uid, { last_login_at: new Date().toISOString() });
+        }
+        res.json(success({ user: normalizeProfile(profile), isAuthenticated: true }));
     } catch (e) {
         res.status(500).json({ status: 'error', message: e.message });
     }
@@ -336,18 +376,11 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     try {
         const { email } = req.body;
         if (!email) return res.status(400).json({ status: 'error', message: 'Email required' });
-
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) return res.status(400).json({ status: 'error', message: 'Invalid email format' });
-
         try {
-            const resetLink = await admin.auth().generatePasswordResetLink(email);
-            // TODO: send resetLink via Nodemailer / SendGrid
-            console.log(`[DEV] Password reset link for ${email}:`, resetLink);
+            await admin.auth().generatePasswordResetLink(email);
         } catch (firebaseErr) {
             console.error('Firebase reset link error:', firebaseErr.message);
         }
-
         res.json(success({ message: 'If an account exists with that email, a reset link has been sent.' }));
     } catch (e) {
         res.status(500).json({ status: 'error', message: 'Failed to process request' });
@@ -361,200 +394,187 @@ app.post('/api/auth/change-password', verifyToken, async (req, res) => {
         if (newPassword.length < 6) return res.status(400).json({ status: 'error', message: 'Password must be at least 6 characters' });
 
         await admin.auth().updateUser(req.user.uid, { password: newPassword });
-
-        const users = loadUsers();
-        if (users.users[req.user.uid]) {
-            users.users[req.user.uid].lastPasswordChange = new Date().toISOString();
-            saveUsers(users);
-        }
+        await upsertProfile(req.user.uid, { last_password_change: new Date().toISOString() });
 
         res.json(success({ message: 'Password changed successfully' }));
     } catch (e) {
-        console.error('Change password error:', e.message);
         res.status(500).json({ status: 'error', message: 'Failed to change password' });
     }
 });
 
-app.get('/api/user/watchlist', verifyToken, (req, res) => {
+// ─── User Watchlist ────────────────────────────────────────────────────────
+
+app.get('/api/user/watchlist', verifyToken, async (req, res) => {
     try {
-        const users = loadUsers();
-        const watchlist = users.watchlists[req.user.uid] || [];
+        const watchlist = await getWatchlist(req.user.uid);
         res.json(success({ watchlist, total: watchlist.length }));
     } catch (e) {
         res.status(500).json({ status: 'error', message: e.message });
     }
 });
 
-app.post('/api/user/watchlist', verifyToken, (req, res) => {
+app.post('/api/user/watchlist', verifyToken, async (req, res) => {
     try {
         const { podcastId, podcastData } = req.body;
         if (!podcastId) return res.status(400).json({ status: 'error', message: 'podcastId required' });
 
-        const users = loadUsers();
-        if (!users.watchlists[req.user.uid]) users.watchlists[req.user.uid] = [];
+        // Check if already exists
+        const { data: existing } = await supabase
+            .from('watchlists')
+            .select('id')
+            .eq('uid', req.user.uid)
+            .eq('podcast_id', podcastId)
+            .single();
 
-        if (users.watchlists[req.user.uid].find(w => w.id === podcastId)) {
-            return res.json(success({ message: 'Already in watchlist' }));
-        }
+        if (existing) return res.json(success({ message: 'Already in watchlist' }));
 
-        users.watchlists[req.user.uid].push({
-            id: podcastId,
-            addedAt: new Date().toISOString(),
-            data: podcastData || null
+        await supabase.from('watchlists').insert({
+            uid: req.user.uid,
+            podcast_id: podcastId,
+            podcast_data: podcastData || null,
+            added_at: new Date().toISOString()
         });
 
-        if (saveUsers(users)) {
-            res.json(success({ watchlist: users.watchlists[req.user.uid] }));
-        } else {
-            throw new Error('Failed to save');
-        }
+        const watchlist = await getWatchlist(req.user.uid);
+        res.json(success({ watchlist }));
     } catch (e) {
         res.status(500).json({ status: 'error', message: e.message });
     }
 });
 
-app.delete('/api/user/watchlist/:podcastId', verifyToken, (req, res) => {
+app.delete('/api/user/watchlist/:podcastId', verifyToken, async (req, res) => {
     try {
-        const users = loadUsers();
-        if (!users.watchlists[req.user.uid]) {
-            return res.status(404).json({ status: 'error', message: 'Watchlist not found' });
-        }
-        users.watchlists[req.user.uid] = users.watchlists[req.user.uid].filter(w => w.id !== req.params.podcastId);
+        await supabase
+            .from('watchlists')
+            .delete()
+            .eq('uid', req.user.uid)
+            .eq('podcast_id', req.params.podcastId);
 
-        if (saveUsers(users)) {
-            res.json(success({ message: 'Removed from watchlist', watchlist: users.watchlists[req.user.uid] }));
-        } else {
-            throw new Error('Failed to save');
-        }
+        const watchlist = await getWatchlist(req.user.uid);
+        res.json(success({ message: 'Removed from watchlist', watchlist }));
     } catch (e) {
         res.status(500).json({ status: 'error', message: e.message });
     }
 });
 
-app.get('/api/user/history', verifyToken, (req, res) => {
+// ─── User History ──────────────────────────────────────────────────────────
+
+app.get('/api/user/history', verifyToken, async (req, res) => {
     try {
         const { limit = 50 } = req.query;
-        const users = loadUsers();
-        let history = users.history[req.user.uid] || [];
-        history.sort((a, b) => new Date(b.playedAt) - new Date(a.playedAt));
-        history = history.slice(0, parseInt(limit));
+        const history = await getHistory(req.user.uid, parseInt(limit));
         res.json(success({ history, total: history.length }));
     } catch (e) {
         res.status(500).json({ status: 'error', message: e.message });
     }
 });
 
-app.post('/api/user/history', verifyToken, (req, res) => {
+app.post('/api/user/history', verifyToken, async (req, res) => {
     try {
         const { podcastId, podcastData, position = 0 } = req.body;
         if (!podcastId) return res.status(400).json({ status: 'error', message: 'podcastId required' });
 
-        const users = loadUsers();
-        if (!users.history[req.user.uid]) users.history[req.user.uid] = [];
+        await supabase.from('history').upsert({
+            uid: req.user.uid,
+            podcast_id: podcastId,
+            podcast_data: podcastData || null,
+            position,
+            played_at: new Date().toISOString()
+        }, { onConflict: 'uid,podcast_id' });
 
-        const existingIndex = users.history[req.user.uid].findIndex(h => h.id === podcastId);
-        const historyItem = {
-            id: podcastId,
-            playedAt: new Date().toISOString(),
-            data: podcastData || null,
-            position
-        };
-
-        if (existingIndex >= 0) {
-            users.history[req.user.uid][existingIndex] = historyItem;
-        } else {
-            users.history[req.user.uid].push(historyItem);
-        }
-
-        if (users.history[req.user.uid].length > 100) {
-            users.history[req.user.uid] = users.history[req.user.uid].slice(-100);
-        }
-
-        if (saveUsers(users)) {
-            res.json(success({ message: 'Added to history' }));
-        } else {
-            throw new Error('Failed to save');
-        }
+        res.json(success({ message: 'Added to history' }));
     } catch (e) {
         res.status(500).json({ status: 'error', message: e.message });
     }
 });
 
-app.delete('/api/user/history', verifyToken, (req, res) => {
+app.delete('/api/user/history', verifyToken, async (req, res) => {
     try {
-        const users = loadUsers();
-        users.history[req.user.uid] = [];
-        if (saveUsers(users)) {
-            res.json(success({ message: 'History cleared' }));
-        } else {
-            throw new Error('Failed to save');
-        }
+        await supabase.from('history').delete().eq('uid', req.user.uid);
+        res.json(success({ message: 'History cleared' }));
     } catch (e) {
         res.status(500).json({ status: 'error', message: e.message });
     }
 });
 
-app.get('/api/user/position/:podcastId', verifyToken, (req, res) => {
+// ─── Playback Position ────────────────────────────────────────────────────
+
+app.get('/api/user/position/:podcastId', verifyToken, async (req, res) => {
     try {
-        const users = loadUsers();
-        const positions = users.last_playback_positions[req.user.uid] || {};
-        const position = positions[req.params.podcastId] || { position: 0, updatedAt: null };
-        res.json(success({ podcastId: req.params.podcastId, position: position.position, updatedAt: position.updatedAt }));
+        const row = await getPosition(req.user.uid, req.params.podcastId);
+        res.json(success({
+            podcastId: req.params.podcastId,
+            position: row?.position || 0,
+            updatedAt: row?.updated_at || null
+        }));
     } catch (e) {
         res.status(500).json({ status: 'error', message: e.message });
     }
 });
 
-app.post('/api/user/position/:podcastId', verifyToken, (req, res) => {
+app.post('/api/user/position/:podcastId', verifyToken, async (req, res) => {
     try {
         const { position } = req.body;
         if (typeof position !== 'number') return res.status(400).json({ status: 'error', message: 'position must be a number' });
 
-        const users = loadUsers();
-        if (!users.last_playback_positions[req.user.uid]) users.last_playback_positions[req.user.uid] = {};
-
-        users.last_playback_positions[req.user.uid][req.params.podcastId] = {
+        await supabase.from('playback_positions').upsert({
+            uid: req.user.uid,
+            podcast_id: req.params.podcastId,
             position,
-            updatedAt: new Date().toISOString()
-        };
+            updated_at: new Date().toISOString()
+        }, { onConflict: 'uid,podcast_id' });
 
-        if (saveUsers(users)) {
-            res.json(success({ message: 'Position saved' }));
-        } else {
-            throw new Error('Failed to save');
-        }
+        res.json(success({ message: 'Position saved' }));
     } catch (e) {
         res.status(500).json({ status: 'error', message: e.message });
     }
 });
 
-app.get('/api/user/profile', verifyToken, (req, res) => {
+// ─── User Profile ─────────────────────────────────────────────────────────
+
+function normalizeProfile(row) {
+    if (!row) return null;
+    return {
+        uid: row.uid,
+        email: row.email || '',
+        displayName: row.display_name || '',
+        photoURL: row.photo_url || '',
+        bio: row.bio || '',
+        interests: row.interests || [],
+        createdAt: row.created_at,
+        lastLoginAt: row.last_login_at,
+        notificationPreferences: row.notification_preferences || {
+            newPodcasts: true, channelUpdates: true,
+            recommendations: true, email: true, push: true
+        },
+        settings: row.settings || {
+            language: 'en', theme: 'dark', autoplay: true,
+            playbackSpeed: 1.0, quality: 'auto', dataUsage: 'standard'
+        },
+        privacy: row.privacy || {
+            profileVisibility: 'public', showHistory: false,
+            showWatchlist: false, allowRecommendations: true
+        }
+    };
+}
+
+app.get('/api/user/profile', verifyToken, async (req, res) => {
     try {
-        const users = loadUsers();
-        let profile = users.users[req.user.uid];
+        let profile = await getProfile(req.user.uid);
 
         if (!profile) {
-            profile = {
-                uid: req.user.uid,
+            profile = await upsertProfile(req.user.uid, {
                 email: req.user.email || '',
-                displayName: req.user.name || req.user.email?.split('@')[0] || 'User',
-                photoURL: req.user.picture || getAvatarURL(req.user.email, req.user.name),
+                display_name: req.user.name || req.user.email?.split('@')[0] || 'User',
+                photo_url: req.user.picture || getAvatarURL(req.user.email, req.user.name),
                 bio: '',
                 interests: [],
-                createdAt: new Date().toISOString(),
-                lastLoginAt: new Date().toISOString()
-            };
-            users.users[req.user.uid] = profile;
-            saveUsers(users);
+                created_at: new Date().toISOString(),
+                last_login_at: new Date().toISOString()
+            });
         }
 
-        if (!profile.photoURL) {
-            profile.photoURL = getAvatarURL(profile.email, profile.displayName);
-            users.users[req.user.uid] = profile;
-            saveUsers(users);
-        }
-
-        res.json(success({ profile }));
+        res.json(success({ profile: normalizeProfile(profile) }));
     } catch (e) {
         res.status(500).json({ status: 'error', message: e.message });
     }
@@ -563,40 +583,25 @@ app.get('/api/user/profile', verifyToken, (req, res) => {
 app.put('/api/user/profile', verifyToken, async (req, res) => {
     try {
         const { displayName, photoURL, bio, interests } = req.body;
-        const users = loadUsers();
 
-        if (!users.users[req.user.uid]) {
-            users.users[req.user.uid] = {
-                uid: req.user.uid,
-                email: req.user.email || '',
-                displayName: req.user.name || req.user.email?.split('@')[0] || 'User',
-                photoURL: req.user.picture || getAvatarURL(req.user.email, req.user.name),
-                bio: '',
-                interests: [],
-                createdAt: new Date().toISOString(),
-                lastLoginAt: new Date().toISOString()
-            };
-        }
-
-        if (displayName !== undefined) users.users[req.user.uid].displayName = displayName;
-
+        const fields = {};
+        if (displayName !== undefined) fields.display_name = displayName;
+        if (bio !== undefined) fields.bio = bio;
+        if (interests !== undefined) fields.interests = interests;
         if (photoURL !== undefined) {
-            if (photoURL === null || photoURL === '') {
-                users.users[req.user.uid].photoURL = getAvatarURL(
-                    users.users[req.user.uid].email,
-                    users.users[req.user.uid].displayName
-                );
+            if (!photoURL || photoURL === '') {
+                const profile = await getProfile(req.user.uid);
+                fields.photo_url = getAvatarURL(profile?.email || req.user.email, displayName || profile?.display_name);
             } else if (photoURL.startsWith('http://') || photoURL.startsWith('https://')) {
-                users.users[req.user.uid].photoURL = photoURL;
+                fields.photo_url = photoURL;
             } else {
                 return res.status(400).json({ status: 'error', message: 'photoURL must be a valid HTTP/HTTPS URL or null' });
             }
         }
 
-        if (bio !== undefined) users.users[req.user.uid].bio = bio;
-        if (interests !== undefined) users.users[req.user.uid].interests = interests;
-        users.users[req.user.uid].updatedAt = new Date().toISOString();
+        const updated = await upsertProfile(req.user.uid, fields);
 
+        // Sync displayName to Firebase Auth too
         try {
             if (displayName !== undefined && admin.apps.length > 0) {
                 await admin.auth().updateUser(req.user.uid, { displayName });
@@ -605,11 +610,7 @@ app.put('/api/user/profile', verifyToken, async (req, res) => {
             console.error('Firebase displayName sync error (non-fatal):', authErr.message);
         }
 
-        if (saveUsers(users)) {
-            res.json(success({ message: 'Profile updated successfully', profile: users.users[req.user.uid] }));
-        } else {
-            throw new Error('Failed to save profile');
-        }
+        res.json(success({ message: 'Profile updated successfully', profile: normalizeProfile(updated) }));
     } catch (e) {
         res.status(500).json({ status: 'error', message: e.message });
     }
@@ -617,39 +618,39 @@ app.put('/api/user/profile', verifyToken, async (req, res) => {
 
 app.delete('/api/user/profile', verifyToken, async (req, res) => {
     try {
-        const users = loadUsers();
         const uid = req.user.uid;
+        const profile = await getProfile(uid);
 
-        try {
-            const profile = users.users[uid];
-            if (profile?.photoURL?.includes('supabase')) {
-                const fileName = profile.photoURL.split('/').pop().split('?')[0];
+        // Delete Supabase photo if exists
+        if (profile?.photo_url?.includes('supabase')) {
+            try {
+                const fileName = profile.photo_url.split('/').pop().split('?')[0];
                 await supabase.storage.from('avatars').remove([fileName]);
+            } catch (storageErr) {
+                console.error('Supabase storage delete error (non-fatal):', storageErr.message);
             }
-        } catch (storageErr) {
-            console.error('Supabase delete error (non-fatal):', storageErr.message);
         }
 
-        delete users.users[uid];
-        delete users.watchlists[uid];
-        delete users.history[uid];
-        delete users.last_playback_positions[uid];
+        // Delete all user data from Supabase
+        await supabase.from('users').delete().eq('uid', uid);
+        await supabase.from('watchlists').delete().eq('uid', uid);
+        await supabase.from('history').delete().eq('uid', uid);
+        await supabase.from('playback_positions').delete().eq('uid', uid);
 
+        // Delete from Firebase Auth
         try {
             await admin.auth().deleteUser(uid);
         } catch (authErr) {
             console.error('Firebase delete error (non-fatal):', authErr.message);
         }
 
-        if (saveUsers(users)) {
-            res.json(success({ message: 'Account deleted successfully' }));
-        } else {
-            throw new Error('Failed to delete account');
-        }
+        res.json(success({ message: 'Account deleted successfully' }));
     } catch (e) {
         res.status(500).json({ status: 'error', message: e.message });
     }
 });
+
+// ─── Photo Upload ─────────────────────────────────────────────────────────
 
 app.post('/api/user/upload-photo', verifyToken, async (req, res) => {
     try {
@@ -668,18 +669,18 @@ app.post('/api/user/upload-photo', verifyToken, async (req, res) => {
             return res.status(400).json({ status: 'error', message: 'Image too large. Maximum 5MB.' });
         }
 
-        const fileName = `${req.user.uid}-${Date.now()}.${imageType}`;
-
+        // Delete old Supabase photo if exists
         try {
-            const users = loadUsers();
-            const profile = users.users[req.user.uid];
-            if (profile?.photoURL?.includes('supabase')) {
-                const oldFileName = profile.photoURL.split('/').pop().split('?')[0];
+            const profile = await getProfile(req.user.uid);
+            if (profile?.photo_url?.includes('supabase')) {
+                const oldFileName = profile.photo_url.split('/').pop().split('?')[0];
                 await supabase.storage.from('avatars').remove([oldFileName]);
             }
         } catch (deleteErr) {
             console.log('Old photo cleanup skipped (non-fatal):', deleteErr.message);
         }
+
+        const fileName = `${req.user.uid}-${Date.now()}.${imageType}`;
 
         const { error: uploadError } = await supabase.storage
             .from('avatars')
@@ -696,23 +697,13 @@ app.post('/api/user/upload-photo', verifyToken, async (req, res) => {
 
         const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(fileName);
 
-        const users = loadUsers();
-        if (!users.users[req.user.uid]) {
-            users.users[req.user.uid] = {
-                uid: req.user.uid,
-                email: req.user.email || '',
-                displayName: req.user.name || req.user.email?.split('@')[0] || 'User',
-                createdAt: new Date().toISOString()
-            };
-        }
-        users.users[req.user.uid].photoURL = publicUrl;
-        users.users[req.user.uid].updatedAt = new Date().toISOString();
+        await upsertProfile(req.user.uid, {
+            photo_url: publicUrl,
+            email: req.user.email || '',
+            display_name: req.user.name || req.user.email?.split('@')[0] || 'User'
+        });
 
-        if (saveUsers(users)) {
-            res.json(success({ message: 'Photo uploaded successfully', photoURL: publicUrl }));
-        } else {
-            throw new Error('Failed to save profile');
-        }
+        res.json(success({ message: 'Photo uploaded successfully', photoURL: publicUrl }));
     } catch (e) {
         console.error('Upload photo error:', e.message);
         res.status(500).json({ status: 'error', message: e.message });
@@ -721,113 +712,85 @@ app.post('/api/user/upload-photo', verifyToken, async (req, res) => {
 
 app.delete('/api/user/photo', verifyToken, async (req, res) => {
     try {
-        const users = loadUsers();
-        const profile = users.users[req.user.uid];
-
+        const profile = await getProfile(req.user.uid);
         if (!profile) return res.status(404).json({ status: 'error', message: 'Profile not found' });
 
-        if (profile.photoURL?.includes('supabase')) {
+        if (profile.photo_url?.includes('supabase')) {
             try {
-                const fileName = profile.photoURL.split('/').pop().split('?')[0];
+                const fileName = profile.photo_url.split('/').pop().split('?')[0];
                 await supabase.storage.from('avatars').remove([fileName]);
             } catch (storageErr) {
                 console.error('Supabase delete error (non-fatal):', storageErr.message);
             }
         }
 
-        profile.photoURL = getAvatarURL(profile.email, profile.displayName);
-        profile.updatedAt = new Date().toISOString();
+        const newPhotoURL = getAvatarURL(profile.email, profile.display_name);
+        await upsertProfile(req.user.uid, { photo_url: newPhotoURL });
 
-        if (saveUsers(users)) {
-            res.json(success({ message: 'Photo deleted successfully', photoURL: profile.photoURL }));
-        } else {
-            throw new Error('Failed to save profile');
-        }
+        res.json(success({ message: 'Photo deleted successfully', photoURL: newPhotoURL }));
     } catch (e) {
         res.status(500).json({ status: 'error', message: e.message });
     }
 });
 
-app.get('/api/user/notifications', verifyToken, (req, res) => {
+// ─── Notifications ────────────────────────────────────────────────────────
+
+app.get('/api/user/notifications', verifyToken, async (req, res) => {
     try {
-        const users = loadUsers();
-        let profile = users.users[req.user.uid];
-
-        if (!profile) {
-            profile = {
-                uid: req.user.uid,
-                email: req.user.email || '',
-                displayName: req.user.name || req.user.email?.split('@')[0] || 'User',
-                createdAt: new Date().toISOString()
-            };
-            users.users[req.user.uid] = profile;
-            saveUsers(users);
-        }
-
-        const notifications = profile.notificationPreferences || {
+        const profile = await getProfile(req.user.uid);
+        const notifications = profile?.notification_preferences || {
             newPodcasts: true, channelUpdates: true,
             recommendations: true, email: true, push: true
         };
-
         res.json(success({ notifications }));
     } catch (e) {
         res.status(500).json({ status: 'error', message: e.message });
     }
 });
 
-app.put('/api/user/notifications', verifyToken, (req, res) => {
+app.put('/api/user/notifications', verifyToken, async (req, res) => {
     try {
         const { newPodcasts, channelUpdates, recommendations, email, push } = req.body;
-        const users = loadUsers();
+        const profile = await getProfile(req.user.uid);
+        if (!profile) return res.status(404).json({ status: 'error', message: 'Profile not found' });
 
-        if (!users.users[req.user.uid]) return res.status(404).json({ status: 'error', message: 'Profile not found' });
-        if (!users.users[req.user.uid].notificationPreferences) users.users[req.user.uid].notificationPreferences = {};
-
-        const prefs = users.users[req.user.uid].notificationPreferences;
+        const prefs = profile.notification_preferences || {};
         if (newPodcasts !== undefined) prefs.newPodcasts = newPodcasts;
         if (channelUpdates !== undefined) prefs.channelUpdates = channelUpdates;
         if (recommendations !== undefined) prefs.recommendations = recommendations;
         if (email !== undefined) prefs.email = email;
         if (push !== undefined) prefs.push = push;
 
-        users.users[req.user.uid].updatedAt = new Date().toISOString();
-
-        if (saveUsers(users)) {
-            res.json(success({ message: 'Notification preferences updated', notifications: prefs }));
-        } else {
-            throw new Error('Failed to save');
-        }
+        await upsertProfile(req.user.uid, { notification_preferences: prefs });
+        res.json(success({ message: 'Notification preferences updated', notifications: prefs }));
     } catch (e) {
         res.status(500).json({ status: 'error', message: e.message });
     }
 });
 
-app.get('/api/user/settings', verifyToken, (req, res) => {
-    try {
-        const users = loadUsers();
-        const profile = users.users[req.user.uid];
-        if (!profile) return res.status(404).json({ status: 'error', message: 'Profile not found' });
+// ─── Settings ─────────────────────────────────────────────────────────────
 
+app.get('/api/user/settings', verifyToken, async (req, res) => {
+    try {
+        const profile = await getProfile(req.user.uid);
+        if (!profile) return res.status(404).json({ status: 'error', message: 'Profile not found' });
         const settings = profile.settings || {
             language: 'en', theme: 'dark', autoplay: true,
             playbackSpeed: 1.0, quality: 'auto', dataUsage: 'standard'
         };
-
         res.json(success({ settings }));
     } catch (e) {
         res.status(500).json({ status: 'error', message: e.message });
     }
 });
 
-app.put('/api/user/settings', verifyToken, (req, res) => {
+app.put('/api/user/settings', verifyToken, async (req, res) => {
     try {
         const { language, theme, autoplay, playbackSpeed, quality, dataUsage } = req.body;
-        const users = loadUsers();
+        const profile = await getProfile(req.user.uid);
+        if (!profile) return res.status(404).json({ status: 'error', message: 'Profile not found' });
 
-        if (!users.users[req.user.uid]) return res.status(404).json({ status: 'error', message: 'Profile not found' });
-        if (!users.users[req.user.uid].settings) users.users[req.user.uid].settings = {};
-
-        const settings = users.users[req.user.uid].settings;
+        const settings = profile.settings || {};
         if (language !== undefined) settings.language = language;
         if (theme !== undefined) settings.theme = theme;
         if (autoplay !== undefined) settings.autoplay = autoplay;
@@ -835,65 +798,53 @@ app.put('/api/user/settings', verifyToken, (req, res) => {
         if (quality !== undefined) settings.quality = quality;
         if (dataUsage !== undefined) settings.dataUsage = dataUsage;
 
-        users.users[req.user.uid].updatedAt = new Date().toISOString();
-
-        if (saveUsers(users)) {
-            res.json(success({ message: 'Settings updated', settings }));
-        } else {
-            throw new Error('Failed to save');
-        }
+        await upsertProfile(req.user.uid, { settings });
+        res.json(success({ message: 'Settings updated', settings }));
     } catch (e) {
         res.status(500).json({ status: 'error', message: e.message });
     }
 });
 
-app.get('/api/user/privacy', verifyToken, (req, res) => {
-    try {
-        const users = loadUsers();
-        const profile = users.users[req.user.uid];
-        if (!profile) return res.status(404).json({ status: 'error', message: 'Profile not found' });
+// ─── Privacy ──────────────────────────────────────────────────────────────
 
+app.get('/api/user/privacy', verifyToken, async (req, res) => {
+    try {
+        const profile = await getProfile(req.user.uid);
+        if (!profile) return res.status(404).json({ status: 'error', message: 'Profile not found' });
         const privacy = profile.privacy || {
             profileVisibility: 'public', showHistory: false,
             showWatchlist: false, allowRecommendations: true
         };
-
         res.json(success({ privacy }));
     } catch (e) {
         res.status(500).json({ status: 'error', message: e.message });
     }
 });
 
-app.put('/api/user/privacy', verifyToken, (req, res) => {
+app.put('/api/user/privacy', verifyToken, async (req, res) => {
     try {
         const { profileVisibility, showHistory, showWatchlist, allowRecommendations } = req.body;
-        const users = loadUsers();
+        const profile = await getProfile(req.user.uid);
+        if (!profile) return res.status(404).json({ status: 'error', message: 'Profile not found' });
 
-        if (!users.users[req.user.uid]) return res.status(404).json({ status: 'error', message: 'Profile not found' });
-        if (!users.users[req.user.uid].privacy) users.users[req.user.uid].privacy = {};
-
-        const privacy = users.users[req.user.uid].privacy;
+        const privacy = profile.privacy || {};
         if (profileVisibility !== undefined) privacy.profileVisibility = profileVisibility;
         if (showHistory !== undefined) privacy.showHistory = showHistory;
         if (showWatchlist !== undefined) privacy.showWatchlist = showWatchlist;
         if (allowRecommendations !== undefined) privacy.allowRecommendations = allowRecommendations;
 
-        users.users[req.user.uid].updatedAt = new Date().toISOString();
-
-        if (saveUsers(users)) {
-            res.json(success({ message: 'Privacy settings updated', privacy }));
-        } else {
-            throw new Error('Failed to save');
-        }
+        await upsertProfile(req.user.uid, { privacy });
+        res.json(success({ message: 'Privacy settings updated', privacy }));
     } catch (e) {
         res.status(500).json({ status: 'error', message: e.message });
     }
 });
 
+// ─── Security ─────────────────────────────────────────────────────────────
+
 app.get('/api/user/security', verifyToken, async (req, res) => {
     try {
-        const users = loadUsers();
-        const profile = users.users[req.user.uid];
+        const profile = await getProfile(req.user.uid);
         if (!profile) return res.status(404).json({ status: 'error', message: 'Profile not found' });
 
         let emailVerified = false;
@@ -911,7 +862,7 @@ app.get('/api/user/security', verifyToken, async (req, res) => {
             security: {
                 emailVerified, lastSignIn,
                 twoFactorEnabled: false,
-                lastPasswordChange: profile.lastPasswordChange || null
+                lastPasswordChange: profile.last_password_change || null
             }
         }));
     } catch (e) {
@@ -921,86 +872,72 @@ app.get('/api/user/security', verifyToken, async (req, res) => {
 
 app.post('/api/user/security/verify-email', verifyToken, async (req, res) => {
     try {
-        const link = await admin.auth().generateEmailVerificationLink(req.user.email);
-        // TODO: send link via Nodemailer / SendGrid
-        console.log(`[DEV] Email verification link for ${req.user.email}:`, link);
+        await admin.auth().generateEmailVerificationLink(req.user.email);
         res.json(success({ message: 'Verification email sent' }));
     } catch (e) {
-        console.error('Email verification error:', e.message);
         res.status(500).json({ status: 'error', message: 'Failed to send verification email' });
     }
 });
 
+// ─── Support ──────────────────────────────────────────────────────────────
+
 app.get('/api/support/faq', (req, res) => {
-    try {
-        const faq = [
+    res.json(success({
+        faq: [
             { id: 1, question: 'How do I create an account?', answer: 'Click Sign Up and register using your email or Google account.', category: 'account' },
             { id: 2, question: 'How do I reset my password?', answer: 'Click "Forgot Password" on the login page and follow the instructions sent to your email.', category: 'account' },
             { id: 3, question: 'How do I add podcasts to my watchlist?', answer: 'Click the bookmark icon on any podcast to save it.', category: 'features' },
             { id: 4, question: 'Can I download podcasts for offline listening?', answer: 'Offline downloads are not available yet. Stay tuned!', category: 'features' },
             { id: 5, question: 'How do I change my notification settings?', answer: 'Go to Settings > Notifications to customize your preferences.', category: 'settings' }
-        ];
-        res.json(success({ faq, total: faq.length }));
-    } catch (e) {
-        res.status(500).json({ status: 'error', message: e.message });
-    }
+        ]
+    }));
 });
 
-app.post('/api/support/contact', verifyToken, (req, res) => {
+app.post('/api/support/contact', verifyToken, async (req, res) => {
     try {
         const { subject, message, category } = req.body;
         if (!subject || !message) return res.status(400).json({ status: 'error', message: 'subject and message required' });
 
-        const users = loadUsers();
-        if (!users.supportTickets) users.supportTickets = [];
-
-        const ticket = {
-            id: `ticket-${Date.now()}`,
+        await supabase.from('support_tickets').insert({
             uid: req.user.uid,
             email: req.user.email,
             subject, message,
             category: category || 'general',
             status: 'open',
-            createdAt: new Date().toISOString()
-        };
+            created_at: new Date().toISOString()
+        });
 
-        users.supportTickets.push(ticket);
-
-        if (saveUsers(users)) {
-            res.json(success({ message: 'Support request submitted', ticket }));
-        } else {
-            throw new Error('Failed to submit request');
-        }
+        res.json(success({ message: 'Support request submitted' }));
     } catch (e) {
         res.status(500).json({ status: 'error', message: e.message });
     }
 });
 
-app.get('/api/support/tickets', verifyToken, (req, res) => {
+app.get('/api/support/tickets', verifyToken, async (req, res) => {
     try {
-        const users = loadUsers();
-        const tickets = (users.supportTickets || []).filter(t => t.uid === req.user.uid);
-        res.json(success({ tickets, total: tickets.length }));
+        const { data: tickets } = await supabase
+            .from('support_tickets')
+            .select('*')
+            .eq('uid', req.user.uid)
+            .order('created_at', { ascending: false });
+        res.json(success({ tickets: tickets || [], total: tickets?.length || 0 }));
     } catch (e) {
         res.status(500).json({ status: 'error', message: e.message });
     }
 });
 
 app.get('/api/support/about', (req, res) => {
-    try {
-        res.json(success({
-            about: {
-                appName: 'Ethiopodcasts',
-                version: '2.0.0',
-                description: 'Your gateway to Ethiopian podcasts',
-                contact: { email: 'support@ethiopodcasts.com', website: 'https://ethiopodcasts.com' },
-                social: { twitter: '@ethiopodcasts', facebook: 'ethiopodcasts', instagram: '@ethiopodcasts' }
-            }
-        }));
-    } catch (e) {
-        res.status(500).json({ status: 'error', message: e.message });
-    }
+    res.json(success({
+        about: {
+            appName: 'Ethiopodcasts', version: '2.0.0',
+            description: 'Your gateway to Ethiopian podcasts',
+            contact: { email: 'support@ethiopodcasts.com', website: 'https://ethiopodcasts.com' },
+            social: { twitter: '@ethiopodcasts', facebook: 'ethiopodcasts', instagram: '@ethiopodcasts' }
+        }
+    }));
 });
+
+// ─── Fallbacks ────────────────────────────────────────────────────────────
 
 app.get('/', (req, res) => res.json(success({ server: 'Ethiopodcasts API v2', status: 'running' })));
 app.use((req, res) => res.status(404).json({ status: 'error', message: 'Not found' }));
@@ -1008,7 +945,7 @@ app.use((e, req, res, next) => res.status(500).json({ status: 'error', message: 
 
 app.listen(port, () => {
     console.log(`\n🎧 Ethiopodcasts API v2 running at http://localhost:${port}`);
-    console.log(`🔐 Auth: Firebase  |  📸 Photos: Supabase Storage\n`);
+    console.log(`🔐 Auth: Firebase  |  🗄️ DB: Supabase  |  📸 Photos: Supabase Storage\n`);
 });
 
 module.exports = app;
