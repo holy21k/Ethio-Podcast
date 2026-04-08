@@ -115,6 +115,17 @@ function getAvatarURL(email, displayName) {
     return null;
 }
 
+// ✅ Helper: format Supabase errors clearly for Vercel logs
+function logSupabaseError(context, e, extraInfo = {}) {
+    console.error(`❌ ${context}`, {
+        message: e.message,
+        code: e.code,
+        details: e.details,
+        hint: e.hint,
+        ...extraInfo
+    });
+}
+
 // ─── Routes ───────────────────────────────────────────────────────────────
 
 app.get('/api/health', (req, res) => res.json(success({ server: 'Ethiopodcasts API v2', status: 'healthy' })));
@@ -352,7 +363,18 @@ app.get('/api/stats', (req, res) => {
 
 app.get('/api/auth/login', verifyToken, async (req, res) => {
     try {
+        // ✅ Check Supabase is configured before even trying
+        if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
+            console.error('❌ SUPABASE_URL or SUPABASE_SERVICE_KEY missing from env vars!');
+            return res.status(500).json({
+                status: 'error',
+                message: 'Database not configured. Set SUPABASE_URL and SUPABASE_SERVICE_KEY in Vercel environment variables.',
+                code: 'SUPABASE_NOT_CONFIGURED'
+            });
+        }
+
         let profile = await getProfile(req.user.uid);
+
         if (!profile) {
             profile = await upsertProfile(req.user.uid, {
                 email: req.user.email || '',
@@ -366,9 +388,17 @@ app.get('/api/auth/login', verifyToken, async (req, res) => {
         } else {
             profile = await upsertProfile(req.user.uid, { last_login_at: new Date().toISOString() });
         }
+
         res.json(success({ user: normalizeProfile(profile), isAuthenticated: true }));
     } catch (e) {
-        res.status(500).json({ status: 'error', message: e.message });
+        // ✅ Log the FULL Supabase error so Vercel logs show exactly what's wrong
+        logSupabaseError('/api/auth/login', e, { uid: req.user?.uid, email: req.user?.email });
+        res.status(500).json({
+            status: 'error',
+            message: e.message,
+            hint: e.hint || null,   // ✅ Supabase hint tells you exactly what column/table is missing
+            code: e.code || null
+        });
     }
 });
 
@@ -409,7 +439,8 @@ app.get('/api/user/watchlist', verifyToken, async (req, res) => {
         const watchlist = await getWatchlist(req.user.uid);
         res.json(success({ watchlist, total: watchlist.length }));
     } catch (e) {
-        res.status(500).json({ status: 'error', message: e.message });
+        logSupabaseError('/api/user/watchlist GET', e, { uid: req.user?.uid });
+        res.status(500).json({ status: 'error', message: e.message, hint: e.hint || null, code: e.code || null });
     }
 });
 
@@ -418,7 +449,6 @@ app.post('/api/user/watchlist', verifyToken, async (req, res) => {
         const { podcastId, podcastData } = req.body;
         if (!podcastId) return res.status(400).json({ status: 'error', message: 'podcastId required' });
 
-        // Check if already exists
         const { data: existing } = await supabase
             .from('watchlists')
             .select('id')
@@ -438,7 +468,8 @@ app.post('/api/user/watchlist', verifyToken, async (req, res) => {
         const watchlist = await getWatchlist(req.user.uid);
         res.json(success({ watchlist }));
     } catch (e) {
-        res.status(500).json({ status: 'error', message: e.message });
+        logSupabaseError('/api/user/watchlist POST', e, { uid: req.user?.uid });
+        res.status(500).json({ status: 'error', message: e.message, hint: e.hint || null, code: e.code || null });
     }
 });
 
@@ -453,7 +484,8 @@ app.delete('/api/user/watchlist/:podcastId', verifyToken, async (req, res) => {
         const watchlist = await getWatchlist(req.user.uid);
         res.json(success({ message: 'Removed from watchlist', watchlist }));
     } catch (e) {
-        res.status(500).json({ status: 'error', message: e.message });
+        logSupabaseError('/api/user/watchlist DELETE', e, { uid: req.user?.uid });
+        res.status(500).json({ status: 'error', message: e.message, hint: e.hint || null, code: e.code || null });
     }
 });
 
@@ -465,7 +497,8 @@ app.get('/api/user/history', verifyToken, async (req, res) => {
         const history = await getHistory(req.user.uid, parseInt(limit));
         res.json(success({ history, total: history.length }));
     } catch (e) {
-        res.status(500).json({ status: 'error', message: e.message });
+        logSupabaseError('/api/user/history GET', e, { uid: req.user?.uid });
+        res.status(500).json({ status: 'error', message: e.message, hint: e.hint || null, code: e.code || null });
     }
 });
 
@@ -484,7 +517,8 @@ app.post('/api/user/history', verifyToken, async (req, res) => {
 
         res.json(success({ message: 'Added to history' }));
     } catch (e) {
-        res.status(500).json({ status: 'error', message: e.message });
+        logSupabaseError('/api/user/history POST', e, { uid: req.user?.uid });
+        res.status(500).json({ status: 'error', message: e.message, hint: e.hint || null, code: e.code || null });
     }
 });
 
@@ -493,7 +527,8 @@ app.delete('/api/user/history', verifyToken, async (req, res) => {
         await supabase.from('history').delete().eq('uid', req.user.uid);
         res.json(success({ message: 'History cleared' }));
     } catch (e) {
-        res.status(500).json({ status: 'error', message: e.message });
+        logSupabaseError('/api/user/history DELETE', e, { uid: req.user?.uid });
+        res.status(500).json({ status: 'error', message: e.message, hint: e.hint || null, code: e.code || null });
     }
 });
 
@@ -508,7 +543,8 @@ app.get('/api/user/position/:podcastId', verifyToken, async (req, res) => {
             updatedAt: row?.updated_at || null
         }));
     } catch (e) {
-        res.status(500).json({ status: 'error', message: e.message });
+        logSupabaseError('/api/user/position GET', e, { uid: req.user?.uid });
+        res.status(500).json({ status: 'error', message: e.message, hint: e.hint || null, code: e.code || null });
     }
 });
 
@@ -526,7 +562,8 @@ app.post('/api/user/position/:podcastId', verifyToken, async (req, res) => {
 
         res.json(success({ message: 'Position saved' }));
     } catch (e) {
-        res.status(500).json({ status: 'error', message: e.message });
+        logSupabaseError('/api/user/position POST', e, { uid: req.user?.uid });
+        res.status(500).json({ status: 'error', message: e.message, hint: e.hint || null, code: e.code || null });
     }
 });
 
@@ -576,7 +613,8 @@ app.get('/api/user/profile', verifyToken, async (req, res) => {
 
         res.json(success({ profile: normalizeProfile(profile) }));
     } catch (e) {
-        res.status(500).json({ status: 'error', message: e.message });
+        logSupabaseError('/api/user/profile GET', e, { uid: req.user?.uid });
+        res.status(500).json({ status: 'error', message: e.message, hint: e.hint || null, code: e.code || null });
     }
 });
 
@@ -601,7 +639,6 @@ app.put('/api/user/profile', verifyToken, async (req, res) => {
 
         const updated = await upsertProfile(req.user.uid, fields);
 
-        // Sync displayName to Firebase Auth too
         try {
             if (displayName !== undefined && admin.apps.length > 0) {
                 await admin.auth().updateUser(req.user.uid, { displayName });
@@ -612,7 +649,8 @@ app.put('/api/user/profile', verifyToken, async (req, res) => {
 
         res.json(success({ message: 'Profile updated successfully', profile: normalizeProfile(updated) }));
     } catch (e) {
-        res.status(500).json({ status: 'error', message: e.message });
+        logSupabaseError('/api/user/profile PUT', e, { uid: req.user?.uid });
+        res.status(500).json({ status: 'error', message: e.message, hint: e.hint || null, code: e.code || null });
     }
 });
 
@@ -621,7 +659,6 @@ app.delete('/api/user/profile', verifyToken, async (req, res) => {
         const uid = req.user.uid;
         const profile = await getProfile(uid);
 
-        // Delete Supabase photo if exists
         if (profile?.photo_url?.includes('supabase')) {
             try {
                 const fileName = profile.photo_url.split('/').pop().split('?')[0];
@@ -631,13 +668,11 @@ app.delete('/api/user/profile', verifyToken, async (req, res) => {
             }
         }
 
-        // Delete all user data from Supabase
         await supabase.from('users').delete().eq('uid', uid);
         await supabase.from('watchlists').delete().eq('uid', uid);
         await supabase.from('history').delete().eq('uid', uid);
         await supabase.from('playback_positions').delete().eq('uid', uid);
 
-        // Delete from Firebase Auth
         try {
             await admin.auth().deleteUser(uid);
         } catch (authErr) {
@@ -646,7 +681,8 @@ app.delete('/api/user/profile', verifyToken, async (req, res) => {
 
         res.json(success({ message: 'Account deleted successfully' }));
     } catch (e) {
-        res.status(500).json({ status: 'error', message: e.message });
+        logSupabaseError('/api/user/profile DELETE', e, { uid: req.user?.uid });
+        res.status(500).json({ status: 'error', message: e.message, hint: e.hint || null, code: e.code || null });
     }
 });
 
@@ -669,7 +705,6 @@ app.post('/api/user/upload-photo', verifyToken, async (req, res) => {
             return res.status(400).json({ status: 'error', message: 'Image too large. Maximum 5MB.' });
         }
 
-        // Delete old Supabase photo if exists
         try {
             const profile = await getProfile(req.user.uid);
             if (profile?.photo_url?.includes('supabase')) {
@@ -705,8 +740,8 @@ app.post('/api/user/upload-photo', verifyToken, async (req, res) => {
 
         res.json(success({ message: 'Photo uploaded successfully', photoURL: publicUrl }));
     } catch (e) {
-        console.error('Upload photo error:', e.message);
-        res.status(500).json({ status: 'error', message: e.message });
+        logSupabaseError('/api/user/upload-photo', e, { uid: req.user?.uid });
+        res.status(500).json({ status: 'error', message: e.message, hint: e.hint || null, code: e.code || null });
     }
 });
 
@@ -729,7 +764,8 @@ app.delete('/api/user/photo', verifyToken, async (req, res) => {
 
         res.json(success({ message: 'Photo deleted successfully', photoURL: newPhotoURL }));
     } catch (e) {
-        res.status(500).json({ status: 'error', message: e.message });
+        logSupabaseError('/api/user/photo DELETE', e, { uid: req.user?.uid });
+        res.status(500).json({ status: 'error', message: e.message, hint: e.hint || null, code: e.code || null });
     }
 });
 
@@ -744,7 +780,8 @@ app.get('/api/user/notifications', verifyToken, async (req, res) => {
         };
         res.json(success({ notifications }));
     } catch (e) {
-        res.status(500).json({ status: 'error', message: e.message });
+        logSupabaseError('/api/user/notifications GET', e, { uid: req.user?.uid });
+        res.status(500).json({ status: 'error', message: e.message, hint: e.hint || null, code: e.code || null });
     }
 });
 
@@ -764,7 +801,8 @@ app.put('/api/user/notifications', verifyToken, async (req, res) => {
         await upsertProfile(req.user.uid, { notification_preferences: prefs });
         res.json(success({ message: 'Notification preferences updated', notifications: prefs }));
     } catch (e) {
-        res.status(500).json({ status: 'error', message: e.message });
+        logSupabaseError('/api/user/notifications PUT', e, { uid: req.user?.uid });
+        res.status(500).json({ status: 'error', message: e.message, hint: e.hint || null, code: e.code || null });
     }
 });
 
@@ -780,7 +818,8 @@ app.get('/api/user/settings', verifyToken, async (req, res) => {
         };
         res.json(success({ settings }));
     } catch (e) {
-        res.status(500).json({ status: 'error', message: e.message });
+        logSupabaseError('/api/user/settings GET', e, { uid: req.user?.uid });
+        res.status(500).json({ status: 'error', message: e.message, hint: e.hint || null, code: e.code || null });
     }
 });
 
@@ -801,7 +840,8 @@ app.put('/api/user/settings', verifyToken, async (req, res) => {
         await upsertProfile(req.user.uid, { settings });
         res.json(success({ message: 'Settings updated', settings }));
     } catch (e) {
-        res.status(500).json({ status: 'error', message: e.message });
+        logSupabaseError('/api/user/settings PUT', e, { uid: req.user?.uid });
+        res.status(500).json({ status: 'error', message: e.message, hint: e.hint || null, code: e.code || null });
     }
 });
 
@@ -817,7 +857,8 @@ app.get('/api/user/privacy', verifyToken, async (req, res) => {
         };
         res.json(success({ privacy }));
     } catch (e) {
-        res.status(500).json({ status: 'error', message: e.message });
+        logSupabaseError('/api/user/privacy GET', e, { uid: req.user?.uid });
+        res.status(500).json({ status: 'error', message: e.message, hint: e.hint || null, code: e.code || null });
     }
 });
 
@@ -836,7 +877,8 @@ app.put('/api/user/privacy', verifyToken, async (req, res) => {
         await upsertProfile(req.user.uid, { privacy });
         res.json(success({ message: 'Privacy settings updated', privacy }));
     } catch (e) {
-        res.status(500).json({ status: 'error', message: e.message });
+        logSupabaseError('/api/user/privacy PUT', e, { uid: req.user?.uid });
+        res.status(500).json({ status: 'error', message: e.message, hint: e.hint || null, code: e.code || null });
     }
 });
 
@@ -866,7 +908,8 @@ app.get('/api/user/security', verifyToken, async (req, res) => {
             }
         }));
     } catch (e) {
-        res.status(500).json({ status: 'error', message: e.message });
+        logSupabaseError('/api/user/security GET', e, { uid: req.user?.uid });
+        res.status(500).json({ status: 'error', message: e.message, hint: e.hint || null, code: e.code || null });
     }
 });
 
